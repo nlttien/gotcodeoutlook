@@ -8,9 +8,9 @@ POST http://127.0.0.1:8000/api/get-code
 Content-Type: application/json
 
 {
-  "account_str": "christinakazunas1125@outlook.com|ChristinaKazunas694|M.C542_BAY.0.U.MsaArtifacts.-CuIiCNS63ARtDUjoCQTLnL2*5gUbVfS1HexUJY8HrtMEg!4n4O5uCNztcLS6cvUWrbg37U54ionwRtvsOXat2ZNHuoWg0uCnaazMYF3QD3e5hfmvZbge4mSUDETh56KMgzLfZrNynhABh67XosMXjoQqUafyYX1FdSR!ZagV5yqw4dDQUgL2SBJtNQTgdnrRfOq1ncRa2A4a0MHOH8SxmSV1jUQrWaN7FsOjDiEtemNp3VOGsYnfmu5pKifFp5D7sIiyEv*3BkTqkfRSe!GvN1aU29KWAs5pS0kZTqUQOr8HVU6Rdz9YfGza1gjk7h9cwyzhvevw5MtxTLN8RSlrpAWieZHvULEXSPiB3OPN9TVMNzVv2tP31K7t2l6jwZwwwbUY1qiShbKKBpqjraJ1W8M$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "account_str": "crystalpark444725@outlook.com|CrystalPark55|M.C560_BAY.0.U.MsaArtifacts.-CtdmHbD74vntq51Q4bDggIHGPTB*8uMaz48D7Ww*wRC8QJTEbBoyHAkbHMCf6RX4jP4swRmkoSX9fXY9BgQfxYzdjo8eJSg3H6xi2Zo5bVFRbqdWIIh1EFwxv4yj2nzXG19RHiQEo!h5Vszen7Jz3l8RjipkD90MR7kRXx7mEhGOH1Rw2VYUFIhdIzK1kdD93T*oErWI2Q3nN2lAVD!CWyEsjqKqUdutbZoZotFws7ZV8b!4g5ncBTlCa3L1zvgDYD6tMvhkJ1UqH2XlIOojKAdxRtah5ViecV6Ol6B9W7NdAE8GJhYf9Vge1It4sHapXnr1MHyebRerh!Ge61zgClA6U98siQXcpODBoN7QAMzd5mbeakxA69ndev5AmRm1Ag$$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
   "keyword": "mã xác nhận",
-  "use_mock": true
+  "use_mock": false
 }
 
 
@@ -19,6 +19,6 @@ POST http://127.0.0.1:8000/api/get-code
 Content-Type: application/json
 
 {
-  "account_str": "christinakazunas1125@outlook.com|ChristinaKazunas694|M.C542_BAY.0.U.MsaArtifacts.-CuIiCNS63ARtDUjoCQTLnL2*5gUbVfS1HexUJY8HrtMEg!4n4O5uCNztcLS6cvUWrbg37U54ionwRtvsOXat2ZNHuoWg0uCnaazMYF3QD3e5hfmvZbge4mSUDETh56KMgzLfZrNynhABh67XosMXjoQqUafyYX1FdSR!ZagV5yqw4dDQUgL2SBJtNQTgdnrRfOq1ncRa2A4a0MHOH8SxmSV1jUQrWaN7FsOjDiEtemNp3VOGsYnfmu5pKifFp5D7sIiyEv*3BkTqkfRSe!GvN1aU29KWAs5pS0kZTqUQOr8HVU6Rdz9YfGza1gjk7h9cwyzhvevw5MtxTLN8RSlrpAWieZHvULEXSPiB3OPN9TVMNzVv2tP31K7t2l6jwZwwwbUY1qiShbKKBpqjraJ1W8M$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "account_str": "devinecrystal9187@outlook.com|DevineCrystal37720|M.C517_BAY.0.U.MsaArtifacts.-ClVMh8nbP*ZTBY4BsXv7iRI3gcrb8d1Hai1cp6HANOlcYGrqz6YcgsdygC*6kpqs0pxlHWU5DNmq*pNFhpiX72DgxyNz*m3Eox2547bwmXbYEZF9ZuExZLvn1NXeEPEQsfyGnBXZC*VY2Q4!GExqrZ87udvjAzMfr1Af3Epc6DgROw8CgLcNVJbuokrD!0zthfeNZY2mNbKfU0tLt5x!FkTR2h0jnjpeEShcyKXESGCMLIIMOEYpIpKm4*c0Nn3wbX2*jg!sddPx8gjWeY!Sb77Qo4XtvS6VhXAHSAEmJhHQFE6cI9gic7TUZSUl660F3jNdC8PmTMxLcpwuYr6crsFVLFxBAegUJW3SgW*mii8kJYPbk!g013xiKGzw5oC!1eJtGEPgdy*9BVdyZqlI6r4$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
   "use_mock": false
 }

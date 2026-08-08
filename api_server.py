@@ -52,12 +52,17 @@ class OTPCodeResponse(BaseModel):
 def parse_account_string(account_str: str) -> dict:
     """Bóc tách dòng thông tin tài khoản định dạng: email|password|refresh_token|client_id"""
     parts = [p.strip() for p in account_str.split('|')]
+    rf = parts[2] if len(parts) > 2 else ''
+    # Xử lý tự động chuyển đuôi $$ thành $ nếu bị escape
+    if rf.endswith('$$'):
+        rf = rf[:-1]
     return {
         'username': parts[0] if len(parts) > 0 else '',
         'password': parts[1] if len(parts) > 1 else '',
-        'refresh_token': parts[2] if len(parts) > 2 else '',
+        'refresh_token': rf,
         'client_id': parts[3] if len(parts) > 3 else ''
     }
+
 
 
 def extract_otp_code(text: str) -> List[str]:
@@ -165,6 +170,11 @@ def get_verification_code(req: AccountCodeRequest):
             query = q.contains('subject', req.keyword) | q.contains('body', req.keyword)
 
         messages = list(inbox.get_messages(limit=req.limit, query=query))
+
+        # Nếu lọc theo từ khóa không thấy mail nào, tự động lấy các mail gần nhất trong Inbox
+        if not messages and req.keyword:
+            messages = list(inbox.get_messages(limit=req.limit))
+
 
         if not messages:
             return OTPCodeResponse(
