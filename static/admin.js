@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('admin-search-input');
     const adminInput = document.getElementById('admin-account-str-input');
     const btnAdd = document.getElementById('btn-add-account');
+    const btnClear = document.getElementById('btn-clear-input');
+    const inputLineCount = document.getElementById('input-line-count');
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
 
@@ -26,6 +28,33 @@ document.addEventListener('DOMContentLoaded', () => {
             serverStatus.style.borderColor = 'rgba(248, 113, 113, 0.2)';
             serverStatus.innerHTML = '⚠️ Server Mất Kết Nối';
         });
+
+    // Lắng nghe thay đổi ô Textarea để đếm số dòng realtime
+    if (adminInput && inputLineCount) {
+        adminInput.addEventListener('input', updateLineCount);
+    }
+
+    function updateLineCount() {
+        const text = adminInput.value || '';
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) {
+            inputLineCount.textContent = '0 dòng được phát hiện';
+            inputLineCount.style.color = '#818cf8';
+        } else {
+            inputLineCount.textContent = `🔥 ${lines.length} dòng tài khoản sẵn sàng Import`;
+            inputLineCount.style.color = '#34d399';
+        }
+    }
+
+    // Nút Xóa nhanh ô nhập
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            adminInput.value = '';
+            updateLineCount();
+            adminInput.focus();
+            showToast('Đã xóa trắng ô nhập liệu');
+        });
+    }
 
     // 2. Fetch danh sách tài khoản từ duy nhất 1 bảng accounts trong SQLite DB
     async function fetchAccounts() {
@@ -144,59 +173,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 4. Thêm / Import hàng loạt tài khoản mới vào SQLite DB
-    btnAdd.addEventListener('click', async () => {
-        const str = adminInput.value.trim();
-        if (!str) {
-            showToast('Vui lòng nhập chuỗi tài khoản (1 hoặc nhiều dòng)!', 'error');
-            adminInput.focus();
-            return;
-        }
-
-        const lines = str.split('\n').map(l => l.trim()).filter(Boolean);
-
-        try {
-            const res = await fetch('/api/accounts/batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accounts: lines })
-            });
-
-            const data = await res.json();
-            if (res.ok) {
-                showToast(data.message || `Đã import thành công ${data.added_count} tài khoản vào SQLite Database!`);
-                adminInput.value = '';
-                fetchAccounts();
-            } else {
-                throw new Error(data.detail || 'Lỗi khi lưu tài khoản');
+    if (btnAdd) {
+        btnAdd.addEventListener('click', async () => {
+            const str = adminInput.value.trim();
+            if (!str) {
+                showToast('Vui lòng nhập chuỗi tài khoản (1 hoặc nhiều dòng)!', 'error');
+                adminInput.focus();
+                return;
             }
-        } catch (err) {
-            showToast(`Lỗi: ${err.message}`, 'error');
-        }
-    });
 
+            const lines = str.split('\n').map(l => l.trim()).filter(Boolean);
+
+            try {
+                const res = await fetch('/api/accounts/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accounts: lines })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(data.message || `Đã import thành công ${data.added_count} tài khoản vào SQLite Database!`);
+                    adminInput.value = '';
+                    updateLineCount();
+                    fetchAccounts();
+                } else {
+                    throw new Error(data.detail || 'Lỗi khi lưu tài khoản');
+                }
+            } catch (err) {
+                showToast(`Lỗi: ${err.message}`, 'error');
+            }
+        });
+    }
 
     // 5. Tìm kiếm realtime per User Rule #4
-    searchInput.addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase().trim();
-        if (!term) {
-            renderTable(allAccounts);
-            return;
-        }
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase().trim();
+            if (!term) {
+                renderTable(allAccounts);
+                return;
+            }
 
-        const filtered = allAccounts.filter(acc => 
-            (acc.email && acc.email.toLowerCase().includes(term)) ||
-            (acc.otp_code && acc.otp_code.toLowerCase().includes(term)) ||
-            (acc.subject && acc.subject.toLowerCase().includes(term)) ||
-            (acc.account_str && acc.account_str.toLowerCase().includes(term))
-        );
-        renderTable(filtered);
-    });
+            const filtered = allAccounts.filter(acc => 
+                (acc.email && acc.email.toLowerCase().includes(term)) ||
+                (acc.otp_code && acc.otp_code.toLowerCase().includes(term)) ||
+                (acc.subject && acc.subject.toLowerCase().includes(term)) ||
+                (acc.account_str && acc.account_str.toLowerCase().includes(term))
+            );
+            renderTable(filtered);
+        });
+    }
 
     function escapeHtml(str) {
-        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
     function showToast(msg, type = 'success') {
+        if (!toast || !toastMessage) return;
         toastMessage.textContent = msg;
         toast.className = 'toast';
         if (type === 'error') {
