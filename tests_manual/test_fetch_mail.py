@@ -75,9 +75,9 @@ def test_outlook_mail_operations(client_id="MOCK_CLIENT_ID", client_secret="MOCK
         }
         account.con.get.return_value = mock_response
 
-    # Tạo truy vấn lọc email (Filter Query)
-    query = mailbox.new_query()
-    query.on_attribute('isRead').equals(False)  # Lấy mail chưa đọc
+    # Tạo truy vấn lọc email bằng QueryBuilder (v2.1+)
+    q = mailbox.q()
+    query = q.equals('isRead', False)  # Lấy mail chưa đọc
     
     print("Đang tải danh sách tin nhắn từ Inbox...")
     messages = list(inbox.get_messages(limit=5, query=query))
