@@ -9,9 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allAccounts = [];
 
-    const logsTableBody = document.getElementById('logs-table-body');
-    const btnRefreshLogs = document.getElementById('btn-refresh-logs');
-
     // 1. Kiểm tra sức khỏe API Server
     fetch('/health')
         .then(res => res.json())
@@ -20,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'ok') {
                 serverStatus.innerHTML = '<span class="pulse-dot"></span> SQLite Active';
                 fetchAccounts();
-                fetchMailLogs();
             }
         })
         .catch(() => {
@@ -31,56 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
             serverStatus.innerHTML = '⚠️ Server Mất Kết Nối';
         });
 
-    // 2. Fetch nhật ký mail_logs từ SQLite DB
-    async function fetchMailLogs() {
-        if (!logsTableBody) return;
-        try {
-            const res = await fetch('/api/logs');
-            const data = await res.json();
-            // Giải bóc mảng an toàn per User Rule #4
-            const logs = Array.isArray(data) ? data : (data?.logs || data?.items || []);
-            renderLogsTable(logs);
-        } catch (err) {
-            logsTableBody.innerHTML = `<tr><td colspan="6" style="color: #ef4444; text-align: center; padding: 20px;">Lỗi nạp nhật ký: ${err.message}</td></tr>`;
-        }
-    }
-
-    function renderLogsTable(logs) {
-        if (!logs || logs.length === 0) {
-            logsTableBody.innerHTML = `
-                <tr>
-                    <td colspan="6" style="text-align: center; padding: 25px; color: var(--text-muted);">
-                        Chưa có lịch sử lấy mã OTP nào được ghi nhận trong SQLite DB.
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        logsTableBody.innerHTML = logs.map((log, idx) => {
-            const otpBadge = log.otp_code 
-                ? `<span class="tag-otp"><i class="fa-solid fa-key"></i> ${escapeHtml(log.otp_code)}</span>`
-                : `<span style="color: var(--text-dark);">---</span>`;
-
-            return `
-                <tr>
-                    <td>${idx + 1}</td>
-                    <td><span class="email-key">${escapeHtml(log.email || '---')}</span></td>
-                    <td>${otpBadge}</td>
-                    <td>${escapeHtml(log.subject || 'Không có tiêu đề')}</td>
-                    <td>${escapeHtml(log.sender || '---')}</td>
-                    <td><i class="fa-regular fa-clock"></i> ${escapeHtml(log.created_at || '---')}</td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    if (btnRefreshLogs) {
-        btnRefreshLogs.addEventListener('click', fetchMailLogs);
-    }
-
-
-    // 2. Fetch danh sách tài khoản từ SQLite DB
+    // 2. Fetch danh sách tài khoản từ duy nhất 1 bảng accounts trong SQLite DB
     async function fetchAccounts() {
         try {
             const res = await fetch('/api/accounts');
@@ -91,18 +38,18 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTable(allAccounts);
         } catch (err) {
             showToast(`Lỗi khi nạp dữ liệu SQLite: ${err.message}`, 'error');
-            tableBody.innerHTML = `<tr><td colspan="5" style="color: #ef4444; text-align: center; padding: 20px;">Lỗi nạp dữ liệu: ${err.message}</td></tr>`;
+            tableBody.innerHTML = `<tr><td colspan="7" style="color: #ef4444; text-align: center; padding: 20px;">Lỗi nạp dữ liệu: ${err.message}</td></tr>`;
         }
     }
 
-    // 3. Render Bảng Tài khoản
+    // 3. Render duy nhất 1 Bảng Quản trị Dữ liệu Tài khoản
     function renderTable(accounts) {
-        accountTotalText.textContent = `Tổng số: ${accounts.length} tài khoản`;
+        accountTotalText.textContent = `Tổng số: ${accounts.length} tài khoản trong Database`;
 
         if (!accounts || accounts.length === 0) {
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">
                         <i class="fa-regular fa-folder-open" style="font-size: 28px; margin-bottom: 8px;"></i>
                         <p>Chưa có tài khoản nào trong SQLite Database.</p>
                     </td>
@@ -114,19 +61,30 @@ document.addEventListener('DOMContentLoaded', () => {
         tableBody.innerHTML = accounts.map((acc, idx) => {
             const maskedStr = escapeHtml(acc.account_str || '');
             const emailKey = escapeHtml(acc.email || '');
+            const otpCode = acc.otp_code ? escapeHtml(acc.otp_code) : null;
+            const subjectText = escapeHtml(acc.subject || 'Chưa đọc mail');
+
+            const otpBadge = otpCode 
+                ? `<span class="tag-otp"><i class="fa-solid fa-key"></i> ${otpCode}</span>` 
+                : `<span style="color: var(--text-dark);">---</span>`;
 
             return `
                 <tr>
                     <td>${idx + 1}</td>
                     <td><span class="email-key"><i class="fa-regular fa-envelope"></i> ${emailKey}</span></td>
+                    <td>${otpBadge}</td>
+                    <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${subjectText}">${subjectText}</td>
                     <td>
                         <span class="masked-str" title="${maskedStr}">${maskedStr}</span>
                     </td>
                     <td><i class="fa-regular fa-clock"></i> ${escapeHtml(acc.updated_at || '---')}</td>
                     <td>
                         <div class="btn-action-group">
+                            <button class="btn btn-copy btn-sm btn-copy-otp-code" data-otp="${otpCode || ''}" title="Copy Mã OTP" ${!otpCode ? 'disabled style="opacity:0.4;"' : ''}>
+                                <i class="fa-solid fa-key"></i> Copy OTP
+                            </button>
                             <button class="btn btn-copy btn-sm btn-copy-str" data-str="${maskedStr}" title="Copy chuỗi tài khoản">
-                                <i class="fa-regular fa-copy"></i> Copy
+                                <i class="fa-regular fa-copy"></i> Chuỗi
                             </button>
                             <button class="btn btn-danger btn-sm btn-delete-acc" data-email="${emailKey}" title="Xóa khỏi SQLite DB">
                                 <i class="fa-solid fa-trash-can"></i> Xóa
@@ -137,7 +95,19 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        // Gắn sự kiện Copy
+        // Gắn sự kiện Copy OTP
+        document.querySelectorAll('.btn-copy-otp-code').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const otp = btn.getAttribute('data-otp');
+                if (otp) {
+                    navigator.clipboard.writeText(otp).then(() => {
+                        showToast(`Đã sao chép mã OTP: ${otp}`);
+                    });
+                }
+            });
+        });
+
+        // Gắn sự kiện Copy Chuỗi
         document.querySelectorAll('.btn-copy-str').forEach(btn => {
             btn.addEventListener('click', () => {
                 const str = btn.getAttribute('data-str');
@@ -202,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. Tìm kiếm realtime
+    // 5. Tìm kiếm realtime per User Rule #4
     searchInput.addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase().trim();
         if (!term) {
@@ -212,6 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filtered = allAccounts.filter(acc => 
             (acc.email && acc.email.toLowerCase().includes(term)) ||
+            (acc.otp_code && acc.otp_code.toLowerCase().includes(term)) ||
+            (acc.subject && acc.subject.toLowerCase().includes(term)) ||
             (acc.account_str && acc.account_str.toLowerCase().includes(term))
         );
         renderTable(filtered);

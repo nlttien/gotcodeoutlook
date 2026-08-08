@@ -59,16 +59,16 @@
             </button>
         </section>
 
-        <!-- Bảng Danh sách Tài khoản SQLite -->
-        <section class="card" style="margin-bottom: 24px;">
+        <!-- Bảng Danh sách Tài khoản SQLite (Duy nhất 1 Bảng) -->
+        <section class="card">
             <div class="card-header flex-between">
                 <div>
-                    <h2><i class="fa-solid fa-table-list"></i> Bảng Dữ liệu Tài khoản (`accounts`)</h2>
-                    <p id="account-total-text">Tổng số: 0 tài khoản</p>
+                    <h2><i class="fa-solid fa-table-list"></i> Bảng Quản trị Dữ liệu (`accounts`)</h2>
+                    <p id="account-total-text">Tổng số: 0 tài khoản trong Database</p>
                 </div>
-                <div class="search-box" style="width: 280px;">
+                <div class="search-box" style="width: 300px;">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="admin-search-input" placeholder="Tìm theo Email hoặc chuỗi token...">
+                    <input type="text" id="admin-search-input" placeholder="Tìm theo Email, OTP hoặc Tiêu đề...">
                 </div>
             </div>
 
@@ -78,15 +78,17 @@
                         <tr>
                             <th>#</th>
                             <th>Email (Key)</th>
+                            <th>Mã OTP Mới Nhất</th>
+                            <th>Tiêu đề Email</th>
                             <th>Chuỗi Tài khoản (Account String)</th>
-                            <th>Thời gian Cập nhật</th>
+                            <th>Cập nhật</th>
                             <th>Hành động</th>
                         </tr>
                     </thead>
                     <tbody id="accounts-table-body">
                         <tr>
-                            <td colspan="5" class="text-center" style="padding: 30px; color: var(--text-muted);">
-                                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách dữ liệu...
+                            <td colspan="7" class="text-center" style="padding: 30px; color: var(--text-muted);">
+                                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải dữ liệu từ SQLite DB...
                             </td>
                         </tr>
                     </tbody>
@@ -94,38 +96,6 @@
             </div>
         </section>
 
-        <!-- Bảng Lịch sử Lấy Code (mail_logs) -->
-        <section class="card">
-            <div class="card-header flex-between">
-                <div>
-                    <h2><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký Lấy Mã OTP (`mail_logs`)</h2>
-                    <p id="logs-total-text">Lịch sử 50 lượt gọi gần nhất</p>
-                </div>
-                <button class="btn btn-copy btn-sm" id="btn-refresh-logs"><i class="fa-solid fa-rotate"></i> Làm mới</button>
-            </div>
-
-            <div class="table-responsive">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Tài khoản Email</th>
-                            <th>Mã OTP Trích xuất</th>
-                            <th>Tiêu đề Email</th>
-                            <th>Người gửi</th>
-                            <th>Thời gian Tạo</th>
-                        </tr>
-                    </thead>
-                    <tbody id="logs-table-body">
-                        <tr>
-                            <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">
-                                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải nhật ký...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
 
     </div>
 

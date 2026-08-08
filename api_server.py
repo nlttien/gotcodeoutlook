@@ -25,46 +25,33 @@ DB_PATH = Path(__file__).parent / "accounts.db"
 
 
 def init_sqlite_db():
-    """Khởi tạo bảng accounts và mail_logs trong SQLite Database"""
+    """Khởi tạo duy nhất 1 bảng accounts duy nhất trong SQLite Database"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS accounts (
                 email TEXT PRIMARY KEY,
                 account_str TEXT NOT NULL,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS mail_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL,
                 otp_code TEXT,
                 subject TEXT,
                 sender TEXT,
-                received_time TEXT,
-                message_preview TEXT,
-                status TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # Đảm bảo bổ sung các cột nếu bảng cũ chưa có
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if "otp_code" not in columns:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN otp_code TEXT")
+        if "subject" not in columns:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN subject TEXT")
+        if "sender" not in columns:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN sender TEXT")
         conn.commit()
 
 
-def save_mail_log_to_db(email: str, otp_code: Optional[str], subject: Optional[str], sender: Optional[str], received_time: Optional[str], message_preview: Optional[str], status: str):
-    """Lưu lịch sử lấy mã OTP và thông tin mail vào bảng mail_logs trong SQLite Database"""
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO mail_logs (email, otp_code, subject, sender, received_time, message_preview, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (email.lower() if email else '', otp_code, subject, sender, received_time, message_preview, status))
-        conn.commit()
-
-
-
-def save_account_to_db(account_str: str) -> Optional[str]:
-    """Lưu/Cập nhật thông tin tài khoản vào SQLite Database"""
+def save_account_to_db(account_str: str, otp_code: Optional[str] = None, subject: Optional[str] = None, sender: Optional[str] = None) -> Optional[str]:
+    """Lưu / Cập nhật thông tin tài khoản và mã OTP mới nhất vào duy nhất 1 bảng accounts"""
     acc = parse_account_string(account_str)
     email = acc['username'].strip().lower()
     if not email or '@' not in email:
@@ -72,14 +59,18 @@ def save_account_to_db(account_str: str) -> Optional[str]:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO accounts (email, account_str, updated_at)
-            VALUES (?, ?, datetime('now'))
+            INSERT INTO accounts (email, account_str, otp_code, subject, sender, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(email) DO UPDATE SET
                 account_str = excluded.account_str,
+                otp_code = COALESCE(excluded.otp_code, accounts.otp_code),
+                subject = COALESCE(excluded.subject, accounts.subject),
+                sender = COALESCE(excluded.sender, accounts.sender),
                 updated_at = datetime('now')
-        """, (email, account_str))
+        """, (email, account_str, otp_code, subject, sender))
         conn.commit()
     return email
+
 
 
 def get_account_from_db(query_key: str) -> Optional[str]:
@@ -222,12 +213,22 @@ def read_admin():
 
 @app.get("/api/accounts")
 def list_saved_accounts():
-    """Lấy danh sách tất cả tài khoản đã lưu trong SQLite Database"""
+    """Lấy danh sách tất cả tài khoản và kết quả lấy OTP từ duy nhất 1 bảng accounts trong SQLite DB"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT email, account_str, updated_at FROM accounts ORDER BY updated_at DESC")
+        cursor.execute("SELECT email, account_str, otp_code, subject, sender, updated_at FROM accounts ORDER BY updated_at DESC")
         rows = cursor.fetchall()
-        items = [{"email": r[0], "account_str": r[1], "updated_at": r[2]} for r in rows]
+        items = [
+            {
+                "email": r[0],
+                "account_str": r[1],
+                "otp_code": r[2],
+                "subject": r[3],
+                "sender": r[4],
+                "updated_at": r[5]
+            }
+            for r in rows
+        ]
         return {"status": "success", "accounts": items}
 
 
@@ -240,34 +241,6 @@ def add_new_account(req: AddAccountRequest):
     return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
 
 
-@app.get("/api/logs")
-def list_mail_logs(limit: int = 50):
-    """Lấy danh sách lịch sử đọc mail và trích xuất mã OTP từ SQLite Database"""
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, email, otp_code, subject, sender, received_time, message_preview, status, created_at 
-            FROM mail_logs 
-            ORDER BY id DESC LIMIT ?
-        """, (limit,))
-        rows = cursor.fetchall()
-        items = [
-            {
-                "id": r[0],
-                "email": r[1],
-                "otp_code": r[2],
-                "subject": r[3],
-                "sender": r[4],
-                "received_time": r[5],
-                "message_preview": r[6],
-                "status": r[7],
-                "created_at": r[8]
-            }
-            for r in rows
-        ]
-        return {"status": "success", "logs": items}
-
-
 @app.delete("/api/accounts/{email:path}")
 def delete_account(email: str):
     """Xóa tài khoản khỏi SQLite Database theo email"""
@@ -275,6 +248,7 @@ def delete_account(email: str):
     if not success:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy tài khoản '{email}' trong SQLite Database.")
     return {"status": "success", "message": f"Đã xóa tài khoản {email} khỏi SQLite Database"}
+
 
 
 
@@ -431,16 +405,14 @@ def get_verification_code(req: AccountCodeRequest):
 
         final_status = "success" if primary_otp else "no_otp_code_found"
         
-        # Tự động lưu nhật ký đọc code vào SQLite Database per User Request
-        save_mail_log_to_db(
-            email=username,
+        # Tự động cập nhật kết quả lấy mã OTP mới nhất vào duy nhất 1 bảng accounts
+        save_account_to_db(
+            account_str=account_str,
             otp_code=primary_otp,
             subject=target_msg.subject,
-            sender=target_msg.sender,
-            received_time=target_msg.created_date,
-            message_preview=target_msg.body_preview,
-            status=final_status
+            sender=target_msg.sender
         )
+
 
         return OTPCodeResponse(
             status=final_status,
