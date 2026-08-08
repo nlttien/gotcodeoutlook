@@ -255,6 +255,14 @@ def list_saved_accounts():
         return {"status": "success", "accounts": items}
 
 
+class AddAccountRequest(BaseModel):
+    account_str: str = Field(..., description="Dòng thông tin tài khoản dạng email|password|refresh_token|client_id")
+
+
+class BatchAddAccountsRequest(BaseModel):
+    accounts: List[str] = Field(..., description="Danh sách chuỗi tài khoản dạng mảng hoặc văn bản nhiều dòng")
+
+
 @app.post("/api/accounts/add")
 def add_new_account(req: AddAccountRequest):
     """Thêm hoặc cập nhật tài khoản vào SQLite Database"""
@@ -262,6 +270,42 @@ def add_new_account(req: AddAccountRequest):
     if not email:
         raise HTTPException(status_code=400, detail="Chuỗi account_str không chứa địa chỉ email hợp lệ.")
     return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
+
+
+@app.post("/api/accounts/batch")
+def batch_add_accounts(req: BatchAddAccountsRequest):
+    """Import hàng loạt chuỗi tài khoản Outlook vào SQLite Database"""
+    added_count = 0
+    failed_count = 0
+    processed_emails = []
+
+    raw_lines = []
+    for item in req.accounts:
+        if isinstance(item, str):
+            for line in item.splitlines():
+                line = line.strip()
+                if line:
+                    raw_lines.append(line)
+
+    for line in raw_lines:
+        try:
+            email = save_account_to_db(line)
+            if email:
+                added_count += 1
+                processed_emails.append(email)
+            else:
+                failed_count += 1
+        except Exception:
+            failed_count += 1
+
+    return {
+        "status": "success",
+        "message": f"Đã import thành công {added_count} tài khoản vào SQLite Database" + (f" ({failed_count} dòng lỗi/không hợp lệ)" if failed_count > 0 else ""),
+        "added_count": added_count,
+        "failed_count": failed_count,
+        "emails": processed_emails
+    }
+
 
 
 class EmailOnlyRequest(BaseModel):

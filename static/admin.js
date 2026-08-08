@@ -143,34 +143,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 4. Thêm tài khoản mới vào SQLite DB
+    // 4. Thêm / Import hàng loạt tài khoản mới vào SQLite DB
     btnAdd.addEventListener('click', async () => {
         const str = adminInput.value.trim();
         if (!str) {
-            showToast('Vui lòng nhập chuỗi tài khoản!', 'error');
+            showToast('Vui lòng nhập chuỗi tài khoản (1 hoặc nhiều dòng)!', 'error');
             adminInput.focus();
             return;
         }
 
+        const lines = str.split('\n').map(l => l.trim()).filter(Boolean);
+
         try {
-            const res = await fetch('/api/accounts/add', {
+            const res = await fetch('/api/accounts/batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ account_str: str })
+                body: JSON.stringify({ accounts: lines })
             });
 
             const data = await res.json();
             if (res.ok) {
-                showToast(`Đã lưu tài khoản '${data.email}' vào SQLite Database!`);
+                showToast(data.message || `Đã import thành công ${data.added_count} tài khoản vào SQLite Database!`);
                 adminInput.value = '';
                 fetchAccounts();
             } else {
-                throw new Error(data.detail || 'Lỗi lưu tài khoản');
+                throw new Error(data.detail || 'Lỗi khi lưu tài khoản');
             }
         } catch (err) {
             showToast(`Lỗi: ${err.message}`, 'error');
         }
     });
+
 
     // 5. Tìm kiếm realtime per User Rule #4
     searchInput.addEventListener('input', (e) => {
