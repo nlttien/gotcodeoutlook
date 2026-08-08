@@ -1,0 +1,24 @@
+### 1. Kiểm tra sức khỏe API Server (Health Check)
+GET http://127.0.0.1:8000/health
+Accept: application/json
+
+
+### 2. Trích xuất mã OTP từ dòng tài khoản (Chế độ Giả lập Mock)
+POST http://127.0.0.1:8000/api/get-code
+Content-Type: application/json
+
+{
+  "account_str": "christinakazunas1125@outlook.com|ChristinaKazunas694|M.C542_BAY.0.U.MsaArtifacts.-CuIiCNS63ARtDUjoCQTLnL2*5gUbVfS1HexUJY8HrtMEg!4n4O5uCNztcLS6cvUWrbg37U54ionwRtvsOXat2ZNHuoWg0uCnaazMYF3QD3e5hfmvZbge4mSUDETh56KMgzLfZrNynhABh67XosMXjoQqUafyYX1FdSR!ZagV5yqw4dDQUgL2SBJtNQTgdnrRfOq1ncRa2A4a0MHOH8SxmSV1jUQrWaN7FsOjDiEtemNp3VOGsYnfmu5pKifFp5D7sIiyEv*3BkTqkfRSe!GvN1aU29KWAs5pS0kZTqUQOr8HVU6Rdz9YfGza1gjk7h9cwyzhvevw5MtxTLN8RSlrpAWieZHvULEXSPiB3OPN9TVMNzVv2tP31K7t2l6jwZwwwbUY1qiShbKKBpqjraJ1W8M$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "keyword": "mã xác nhận",
+  "use_mock": true
+}
+
+
+### 3. Trích xuất mã OTP từ hòm thư Outlook thật (Chế độ Thực tế)
+POST http://127.0.0.1:8000/api/get-code
+Content-Type: application/json
+
+{
+  "account_str": "christinakazunas1125@outlook.com|ChristinaKazunas694|M.C542_BAY.0.U.MsaArtifacts.-CuIiCNS63ARtDUjoCQTLnL2*5gUbVfS1HexUJY8HrtMEg!4n4O5uCNztcLS6cvUWrbg37U54ionwRtvsOXat2ZNHuoWg0uCnaazMYF3QD3e5hfmvZbge4mSUDETh56KMgzLfZrNynhABh67XosMXjoQqUafyYX1FdSR!ZagV5yqw4dDQUgL2SBJtNQTgdnrRfOq1ncRa2A4a0MHOH8SxmSV1jUQrWaN7FsOjDiEtemNp3VOGsYnfmu5pKifFp5D7sIiyEv*3BkTqkfRSe!GvN1aU29KWAs5pS0kZTqUQOr8HVU6Rdz9YfGza1gjk7h9cwyzhvevw5MtxTLN8RSlrpAWieZHvULEXSPiB3OPN9TVMNzVv2tP31K7t2l6jwZwwwbUY1qiShbKKBpqjraJ1W8M$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "use_mock": false
+}
