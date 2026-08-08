@@ -82,3 +82,6 @@ local_tests/
 
 # Mac Specifoc
 .DS_Store
+
+# Output test data
+tests_manual/output/
