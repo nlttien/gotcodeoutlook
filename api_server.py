@@ -25,7 +25,7 @@ DB_PATH = Path(__file__).parent / "accounts.db"
 
 
 def init_sqlite_db():
-    """Khởi tạo bảng accounts trong SQLite Database"""
+    """Khởi tạo bảng accounts và mail_logs trong SQLite Database"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -35,7 +35,32 @@ def init_sqlite_db():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mail_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                otp_code TEXT,
+                subject TEXT,
+                sender TEXT,
+                received_time TEXT,
+                message_preview TEXT,
+                status TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
+
+
+def save_mail_log_to_db(email: str, otp_code: Optional[str], subject: Optional[str], sender: Optional[str], received_time: Optional[str], message_preview: Optional[str], status: str):
+    """Lưu lịch sử lấy mã OTP và thông tin mail vào bảng mail_logs trong SQLite Database"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO mail_logs (email, otp_code, subject, sender, received_time, message_preview, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (email.lower() if email else '', otp_code, subject, sender, received_time, message_preview, status))
+        conn.commit()
+
 
 
 def save_account_to_db(account_str: str) -> Optional[str]:
@@ -215,6 +240,34 @@ def add_new_account(req: AddAccountRequest):
     return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
 
 
+@app.get("/api/logs")
+def list_mail_logs(limit: int = 50):
+    """Lấy danh sách lịch sử đọc mail và trích xuất mã OTP từ SQLite Database"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, email, otp_code, subject, sender, received_time, message_preview, status, created_at 
+            FROM mail_logs 
+            ORDER BY id DESC LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        items = [
+            {
+                "id": r[0],
+                "email": r[1],
+                "otp_code": r[2],
+                "subject": r[3],
+                "sender": r[4],
+                "received_time": r[5],
+                "message_preview": r[6],
+                "status": r[7],
+                "created_at": r[8]
+            }
+            for r in rows
+        ]
+        return {"status": "success", "logs": items}
+
+
 @app.delete("/api/accounts/{email:path}")
 def delete_account(email: str):
     """Xóa tài khoản khỏi SQLite Database theo email"""
@@ -222,6 +275,7 @@ def delete_account(email: str):
     if not success:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy tài khoản '{email}' trong SQLite Database.")
     return {"status": "success", "message": f"Đã xóa tài khoản {email} khỏi SQLite Database"}
+
 
 
 
@@ -326,6 +380,15 @@ def get_verification_code(req: AccountCodeRequest):
             messages = list(inbox.get_messages(limit=req.limit))
 
         if not messages:
+            save_mail_log_to_db(
+                email=username,
+                otp_code=None,
+                subject=None,
+                sender=None,
+                received_time=None,
+                message_preview=None,
+                status="no_messages_found"
+            )
             return OTPCodeResponse(
                 status="no_messages_found",
                 email=username,
@@ -356,8 +419,6 @@ def get_verification_code(req: AccountCodeRequest):
                 otp_codes=msg_codes
             ))
 
-
-
         target_msg = parsed_email_items[0]
         primary_otp = target_msg.otp_codes[0] if target_msg.otp_codes else None
 
@@ -368,8 +429,21 @@ def get_verification_code(req: AccountCodeRequest):
                     target_msg = item
                     break
 
+        final_status = "success" if primary_otp else "no_otp_code_found"
+        
+        # Tự động lưu nhật ký đọc code vào SQLite Database per User Request
+        save_mail_log_to_db(
+            email=username,
+            otp_code=primary_otp,
+            subject=target_msg.subject,
+            sender=target_msg.sender,
+            received_time=target_msg.created_date,
+            message_preview=target_msg.body_preview,
+            status=final_status
+        )
+
         return OTPCodeResponse(
-            status="success" if primary_otp else "no_otp_code_found",
+            status=final_status,
             email=username,
             otp_code=primary_otp,
             subject=target_msg.subject,
@@ -379,6 +453,7 @@ def get_verification_code(req: AccountCodeRequest):
             all_codes_found=target_msg.otp_codes,
             all_messages=parsed_email_items
         )
+
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi đọc hòm thư Outlook: {str(e)}")

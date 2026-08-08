@@ -60,7 +60,7 @@
         </section>
 
         <!-- Bảng Danh sách Tài khoản SQLite -->
-        <section class="card">
+        <section class="card" style="margin-bottom: 24px;">
             <div class="card-header flex-between">
                 <div>
                     <h2><i class="fa-solid fa-table-list"></i> Bảng Dữ liệu Tài khoản (`accounts`)</h2>
@@ -93,6 +93,40 @@
                 </table>
             </div>
         </section>
+
+        <!-- Bảng Lịch sử Lấy Code (mail_logs) -->
+        <section class="card">
+            <div class="card-header flex-between">
+                <div>
+                    <h2><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký Lấy Mã OTP (`mail_logs`)</h2>
+                    <p id="logs-total-text">Lịch sử 50 lượt gọi gần nhất</p>
+                </div>
+                <button class="btn btn-copy btn-sm" id="btn-refresh-logs"><i class="fa-solid fa-rotate"></i> Làm mới</button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Tài khoản Email</th>
+                            <th>Mã OTP Trích xuất</th>
+                            <th>Tiêu đề Email</th>
+                            <th>Người gửi</th>
+                            <th>Thời gian Tạo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-table-body">
+                        <tr>
+                            <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">
+                                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải nhật ký...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
     </div>
 
     <!-- Toast Notification -->

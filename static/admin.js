@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allAccounts = [];
 
+    const logsTableBody = document.getElementById('logs-table-body');
+    const btnRefreshLogs = document.getElementById('btn-refresh-logs');
+
     // 1. Kiểm tra sức khỏe API Server
     fetch('/health')
         .then(res => res.json())
@@ -17,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.status === 'ok') {
                 serverStatus.innerHTML = '<span class="pulse-dot"></span> SQLite Active';
                 fetchAccounts();
+                fetchMailLogs();
             }
         })
         .catch(() => {
@@ -26,6 +30,55 @@ document.addEventListener('DOMContentLoaded', () => {
             serverStatus.style.borderColor = 'rgba(248, 113, 113, 0.2)';
             serverStatus.innerHTML = '⚠️ Server Mất Kết Nối';
         });
+
+    // 2. Fetch nhật ký mail_logs từ SQLite DB
+    async function fetchMailLogs() {
+        if (!logsTableBody) return;
+        try {
+            const res = await fetch('/api/logs');
+            const data = await res.json();
+            // Giải bóc mảng an toàn per User Rule #4
+            const logs = Array.isArray(data) ? data : (data?.logs || data?.items || []);
+            renderLogsTable(logs);
+        } catch (err) {
+            logsTableBody.innerHTML = `<tr><td colspan="6" style="color: #ef4444; text-align: center; padding: 20px;">Lỗi nạp nhật ký: ${err.message}</td></tr>`;
+        }
+    }
+
+    function renderLogsTable(logs) {
+        if (!logs || logs.length === 0) {
+            logsTableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 25px; color: var(--text-muted);">
+                        Chưa có lịch sử lấy mã OTP nào được ghi nhận trong SQLite DB.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        logsTableBody.innerHTML = logs.map((log, idx) => {
+            const otpBadge = log.otp_code 
+                ? `<span class="tag-otp"><i class="fa-solid fa-key"></i> ${escapeHtml(log.otp_code)}</span>`
+                : `<span style="color: var(--text-dark);">---</span>`;
+
+            return `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td><span class="email-key">${escapeHtml(log.email || '---')}</span></td>
+                    <td>${otpBadge}</td>
+                    <td>${escapeHtml(log.subject || 'Không có tiêu đề')}</td>
+                    <td>${escapeHtml(log.sender || '---')}</td>
+                    <td><i class="fa-regular fa-clock"></i> ${escapeHtml(log.created_at || '---')}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    if (btnRefreshLogs) {
+        btnRefreshLogs.addEventListener('click', fetchMailLogs);
+    }
+
 
     // 2. Fetch danh sách tài khoản từ SQLite DB
     async function fetchAccounts() {
