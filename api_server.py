@@ -176,18 +176,20 @@ def parse_account_string(account_str: str) -> dict:
 
 
 def extract_otp_code(text: str) -> List[str]:
-    """Trích xuất danh sách mã xác nhận (4-8 chữ số hoặc mã dạng 2f4-07e-5d26) từ văn bản"""
+    """Trích xuất danh sách mã xác nhận (4-8 chữ số hoặc mã dạng gạch ngang ngắn) từ văn bản"""
     if not text:
         return []
     
-    # 1. Tìm các mã chứa dấu gạch ngang (VD: 2f4-07e-5d26, ABC-123-XYZ)
-    hyphen_codes = re.findall(r'\b[a-zA-Z0-9]{2,6}(?:-[a-zA-Z0-9]{2,6})+\b', text)
-
-    # 2. Tìm các mã số đơn thuần (4-8 chữ số)
-    cleaned_text = re.sub(r'\b20[12]\d\b', '', text)
+    # 1. Ưu tiên hàng đầu cho các mã số OTP chuẩn (4-8 chữ số), loại bỏ các năm 2024-2027
+    cleaned_text = re.sub(r'\b20[23]\d\b', '', text)
     digit_codes = re.findall(r'\b\d{4,8}\b', cleaned_text)
 
-    all_matches = hyphen_codes + digit_codes
+    # 2. Tìm các mã dạng gạch ngang ngắn (VD: ABC-123, 2F4-07E) - loại bỏ UUIDs và Client IDs dài
+    hyphen_matches = re.findall(r'\b[a-zA-Z0-9]{2,6}(?:-[a-zA-Z0-9]{2,6})+\b', text)
+    hyphen_codes = [c for c in hyphen_matches if len(c) <= 16 and not c.startswith('9e5f')]
+
+    # Mã số đơn thuần được sắp trước, sau đó tới mã gạch ngang
+    all_matches = digit_codes + hyphen_codes
 
     seen = set()
     unique_codes = []
@@ -196,6 +198,7 @@ def extract_otp_code(text: str) -> List[str]:
             seen.add(code)
             unique_codes.append(code)
     return unique_codes
+
 
 
 
@@ -389,24 +392,18 @@ def get_verification_code(req: AccountCodeRequest):
 
         q = mailbox.q()
         query = None
-        if req.keyword:
-            query = q.contains('subject', req.keyword) | q.contains('body', req.keyword)
-
-        messages = list(inbox.get_messages(limit=req.limit, query=query))
+        try:
+            messages = list(inbox.get_messages(limit=req.limit, query=query, order_by='receivedDateTime desc'))
+        except Exception:
+            messages = list(inbox.get_messages(limit=req.limit, query=query))
 
         if not messages and req.keyword:
-            messages = list(inbox.get_messages(limit=req.limit))
+            try:
+                messages = list(inbox.get_messages(limit=req.limit, order_by='receivedDateTime desc'))
+            except Exception:
+                messages = list(inbox.get_messages(limit=req.limit))
 
         if not messages:
-            save_mail_log_to_db(
-                email=username,
-                otp_code=None,
-                subject=None,
-                sender=None,
-                received_time=None,
-                message_preview=None,
-                status="no_messages_found"
-            )
             return OTPCodeResponse(
                 status="no_messages_found",
                 email=username,
@@ -416,9 +413,9 @@ def get_verification_code(req: AccountCodeRequest):
         parsed_email_items: List[EmailItem] = []
         for msg in messages:
             sub = getattr(msg, 'subject', '') or ''
-            bp = getattr(msg, 'body_preview', str(msg.body or '')) or ''
+            bp = getattr(msg, 'body_preview', str(getattr(msg, 'body', '') or '')) or ''
             snd = str(getattr(msg, 'sender', '') or '')
-            dt_str = str(getattr(msg, 'created', '') or '')
+            dt_str = str(getattr(msg, 'created', '') or getattr(msg, 'received', '') or '')
             has_att = bool(getattr(msg, 'has_attachments', False))
 
             full_body = str(getattr(msg, 'body', '') or bp)
@@ -437,6 +434,9 @@ def get_verification_code(req: AccountCodeRequest):
                 otp_codes=msg_codes
             ))
 
+        # Đảm bảo sắp xếp email theo thứ tự mới nhất xếp ở đầu
+        parsed_email_items.sort(key=lambda x: x.created_date, reverse=True)
+
         target_msg = parsed_email_items[0]
         primary_otp = target_msg.otp_codes[0] if target_msg.otp_codes else None
 
@@ -446,6 +446,7 @@ def get_verification_code(req: AccountCodeRequest):
                     primary_otp = item.otp_codes[0]
                     target_msg = item
                     break
+
 
         final_status = "success" if primary_otp else "no_otp_code_found"
         
