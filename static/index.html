@@ -138,10 +138,31 @@
         </main>
     </div>
 
+    <!-- Modal Xem Nội dung Email Chi tiết -->
+    <div id="email-modal" class="modal-overlay hidden">
+        <div class="modal-card card">
+            <div class="modal-header">
+                <div>
+                    <h3 id="modal-subject">Tiêu đề Email</h3>
+                    <p class="modal-sender" id="modal-sender">Sender</p>
+                </div>
+                <button class="btn-close" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-meta">
+                <span id="modal-date"><i class="fa-regular fa-clock"></i> ---</span>
+                <span id="modal-otp-tag"></span>
+            </div>
+            <div class="modal-body" id="modal-body-content">
+                Nội dung email...
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast" class="toast hidden">
         <i class="fa-solid fa-check-circle"></i> <span id="toast-message">Đã sao chép mã OTP!</span>
     </div>
+
 
     <script src="/static/app.js"></script>
 </body>

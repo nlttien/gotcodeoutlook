@@ -51,8 +51,10 @@ class EmailItem(BaseModel):
     sender: str
     created_date: str
     body_preview: str
+    body: str = ""
     has_attachments: bool
     otp_codes: List[str] = []
+
 
 
 class OTPCodeResponse(BaseModel):
@@ -215,15 +217,18 @@ def get_verification_code(req: AccountCodeRequest):
             c_body = extract_otp_code(bp)
             msg_codes = list(dict.fromkeys(c_sub + c_body))
 
+            full_body = str(getattr(msg, 'body', '') or bp)
             parsed_email_items.append(EmailItem(
                 id=str(getattr(msg, 'object_id', 'msg_id')),
                 subject=sub,
                 sender=snd,
                 created_date=dt_str,
                 body_preview=bp,
+                body=full_body,
                 has_attachments=has_att,
                 otp_codes=msg_codes
             ))
+
 
         target_msg = parsed_email_items[0]
         primary_otp = target_msg.otp_codes[0] if target_msg.otp_codes else None

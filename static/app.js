@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
 
             return `
-                <div class="email-item">
+                <div class="email-item" data-email-id="${email.id}">
                     <div class="email-item-header">
                         <span class="email-subject">${escapeHtml(email.subject || 'Không có tiêu đề')}</span>
                         ${otpTag}
@@ -140,7 +140,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }).join('');
+
+        // Gắn sự kiện click vào từng email item để mở modal
+        document.querySelectorAll('.email-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = item.getAttribute('data-email-id');
+                const targetEmail = emails.find(e => e.id === id);
+                if (targetEmail) {
+                    openEmailModal(targetEmail);
+                }
+            });
+        });
     }
+
+    // Modal elements
+    const emailModal = document.getElementById('email-modal');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const modalSubject = document.getElementById('modal-subject');
+    const modalSender = document.getElementById('modal-sender');
+    const modalDate = document.getElementById('modal-date');
+    const modalOtpTag = document.getElementById('modal-otp-tag');
+    const modalBodyContent = document.getElementById('modal-body-content');
+
+    function openEmailModal(email) {
+        modalSubject.textContent = email.subject || 'Không có tiêu đề';
+        modalSender.textContent = email.sender || '---';
+        modalDate.innerHTML = `<i class="fa-regular fa-clock"></i> ${email.created_date || ''}`;
+        
+        if (email.otp_codes && email.otp_codes.length > 0) {
+            modalOtpTag.innerHTML = `<span class="tag-otp"><i class="fa-solid fa-key"></i> OTP: ${email.otp_codes.join(', ')}</span>`;
+        } else {
+            modalOtpTag.innerHTML = '';
+        }
+
+        modalBodyContent.textContent = email.body || email.body_preview || 'Không có nội dung.';
+        emailModal.classList.remove('hidden');
+    }
+
+    btnCloseModal.addEventListener('click', () => {
+        emailModal.classList.add('hidden');
+    });
+
+    emailModal.addEventListener('click', (e) => {
+        if (e.target === emailModal) {
+            emailModal.classList.add('hidden');
+        }
+    });
+
 
     // 4. Lọc email realtime trên UI
     filterEmailsInput.addEventListener('input', (e) => {
