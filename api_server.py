@@ -282,6 +282,7 @@ def add_new_account(req: AddAccountRequest):
 
 @app.post("/api/accounts/batch")
 def batch_add_accounts(req: BatchAddAccountsRequest):
+
     """Import hàng loạt chuỗi tài khoản Outlook vào SQLite Database"""
     added_count = 0
     failed_count = 0
@@ -316,21 +317,23 @@ def batch_add_accounts(req: BatchAddAccountsRequest):
     }
 
 
-
-
 class EmailOnlyRequest(BaseModel):
     email: str = Field(..., description="Địa chỉ email tài khoản Outlook (VD: sylvesterrojas997795@outlook.com)")
     keyword: Optional[str] = Field(None, description="Từ khóa lọc email")
     limit: Optional[int] = Field(15, description="Số lượng email tối đa cần đọc")
 
 
+@app.delete("/api/accounts/delete/{email:path}")
 @app.delete("/api/accounts/{email:path}")
 def delete_account(email: str):
     """Xóa tài khoản khỏi SQLite Database theo email"""
+    if email in ("batch", "add"):
+        raise HTTPException(status_code=400, detail="Tên email không hợp lệ.")
     success = delete_account_from_db(email)
     if not success:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy tài khoản '{email}' trong SQLite Database.")
     return {"status": "success", "message": f"Đã xóa tài khoản {email} khỏi SQLite Database"}
+
 
 
 @app.get("/api/get-code-by-email")
