@@ -8,9 +8,9 @@ POST http://127.0.0.1:8000/api/get-code
 Content-Type: application/json
 
 {
-  "account_str": "crystalpark444725@outlook.com|CrystalPark55|M.C560_BAY.0.U.MsaArtifacts.-CtdmHbD74vntq51Q4bDggIHGPTB*8uMaz48D7Ww*wRC8QJTEbBoyHAkbHMCf6RX4jP4swRmkoSX9fXY9BgQfxYzdjo8eJSg3H6xi2Zo5bVFRbqdWIIh1EFwxv4yj2nzXG19RHiQEo!h5Vszen7Jz3l8RjipkD90MR7kRXx7mEhGOH1Rw2VYUFIhdIzK1kdD93T*oErWI2Q3nN2lAVD!CWyEsjqKqUdutbZoZotFws7ZV8b!4g5ncBTlCa3L1zvgDYD6tMvhkJ1UqH2XlIOojKAdxRtah5ViecV6Ol6B9W7NdAE8GJhYf9Vge1It4sHapXnr1MHyebRerh!Ge61zgClA6U98siQXcpODBoN7QAMzd5mbeakxA69ndev5AmRm1Ag$$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "account_str": "demo_user@outlook.com|DemoPassword123|M.C_SAMPLE_REFRESH_TOKEN|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
   "keyword": "mã xác nhận",
-  "use_mock": false
+  "use_mock": true
 }
 
 
@@ -19,6 +19,7 @@ POST http://127.0.0.1:8000/api/get-code
 Content-Type: application/json
 
 {
-  "account_str": "devinecrystal9187@outlook.com|DevineCrystal37720|M.C517_BAY.0.U.MsaArtifacts.-ClVMh8nbP*ZTBY4BsXv7iRI3gcrb8d1Hai1cp6HANOlcYGrqz6YcgsdygC*6kpqs0pxlHWU5DNmq*pNFhpiX72DgxyNz*m3Eox2547bwmXbYEZF9ZuExZLvn1NXeEPEQsfyGnBXZC*VY2Q4!GExqrZ87udvjAzMfr1Af3Epc6DgROw8CgLcNVJbuokrD!0zthfeNZY2mNbKfU0tLt5x!FkTR2h0jnjpeEShcyKXESGCMLIIMOEYpIpKm4*c0Nn3wbX2*jg!sddPx8gjWeY!Sb77Qo4XtvS6VhXAHSAEmJhHQFE6cI9gic7TUZSUl660F3jNdC8PmTMxLcpwuYr6crsFVLFxBAegUJW3SgW*mii8kJYPbk!g013xiKGzw5oC!1eJtGEPgdy*9BVdyZqlI6r4$|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "account_str": "your_email@outlook.com|your_password|your_refresh_token|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
+  "keyword": null,
   "use_mock": false
 }

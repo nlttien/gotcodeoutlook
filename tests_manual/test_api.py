@@ -61,11 +61,12 @@ def test_get_code_real():
     print("=" * 60)
     
     account_str = (
-        "devinecrystal9187@outlook.com|"
-        "DevineCrystal37720|"
-        "M.C517_BAY.0.U.MsaArtifacts.-ClVMh8nbP*ZTBY4BsXv7iRI3gcrb8d1Hai1cp6HANOlcYGrqz6YcgsdygC*6kpqs0pxlHWU5DNmq*pNFhpiX72DgxyNz*m3Eox2547bwmXbYEZF9ZuExZLvn1NXeEPEQsfyGnBXZC*VY2Q4!GExqrZ87udvjAzMfr1Af3Epc6DgROw8CgLcNVJbuokrD!0zthfeNZY2mNbKfU0tLt5x!FkTR2h0jnjpeEShcyKXESGCMLIIMOEYpIpKm4*c0Nn3wbX2*jg!sddPx8gjWeY!Sb77Qo4XtvS6VhXAHSAEmJhHQFE6cI9gic7TUZSUl660F3jNdC8PmTMxLcpwuYr6crsFVLFxBAegUJW3SgW*mii8kJYPbk!g013xiKGzw5oC!1eJtGEPgdy*9BVdyZqlI6r4$|"
+        "sample_user@outlook.com|"
+        "SamplePassword123|"
+        "M.C_SAMPLE_REFRESH_TOKEN_PLACEHOLDER|"
         "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
     )
+
     
     payload = {
         "account_str": account_str,
