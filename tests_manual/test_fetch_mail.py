@@ -116,6 +116,34 @@ def test_outlook_mail_operations(client_id="MOCK_CLIENT_ID", client_secret="MOCK
         print(f"Lỗi khi tạo thư mục: {e}")
 
     print("\n" + "=" * 60)
+    print(" 5. LƯU DỮ LIỆU EMAIL VÀO FILE (SAVE DATA TO FILE)")
+    print("=" * 60)
+
+    import json
+    from pathlib import Path
+
+    output_dir = Path("tests_manual/output")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "emails_data.json"
+
+    saved_data = []
+    for msg in messages:
+        saved_data.append({
+            'id': getattr(msg, 'object_id', None),
+            'subject': msg.subject,
+            'sender': str(msg.sender),
+            'body_preview': getattr(msg, 'body_preview', str(msg.body)),
+            'has_attachments': msg.has_attachments,
+            'created_date': str(getattr(msg, 'created', ''))
+        })
+
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(saved_data, f, ensure_ascii=False, indent=4)
+
+    print(f"Đã lưu thành công {len(saved_data)} email vào file:")
+    print(f" -> Path: {json_path.resolve()}")
+
+    print("\n" + "=" * 60)
     print(" HOÀN THÀNH TEST LẤY MAIL VÀ TẠO THƯ MỤC OUTLOOK")
     print("=" * 60)
 
@@ -123,3 +151,4 @@ def test_outlook_mail_operations(client_id="MOCK_CLIENT_ID", client_secret="MOCK
 if __name__ == '__main__':
     # Chạy ở chế độ Mock mặc định để xác minh code không lỗi
     test_outlook_mail_operations(use_mock=True)
+
