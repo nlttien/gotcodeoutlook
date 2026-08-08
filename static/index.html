@@ -48,6 +48,15 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="saved-accounts-select">
+                        <i class="fa-solid fa-database"></i> Chọn Tài khoản từ SQLite DB (Hoặc dán bên dưới)
+                    </label>
+                    <select id="saved-accounts-select">
+                        <option value="">-- Chọn tài khoản đã lưu trong Database --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="account-str-input">
                         Chuỗi Tài khoản Outlook <span class="required">*</span>
                     </label>
@@ -55,9 +64,9 @@
                         id="account-str-input" 
                         rows="4" 
                         placeholder="your_email@outlook.com|your_password|M.C560_BAY..._refresh_token|9e5f94bc-e8a4-4e73-b8be-63364c29d753"
-
                     ></textarea>
                 </div>
+
 
                 <div class="form-row">
                     <div class="form-group half">

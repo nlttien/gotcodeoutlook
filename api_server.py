@@ -4,6 +4,7 @@ API Server & Web UI: Dịch vụ trích xuất mã xác nhận (OTP) và hiển 
 
 import re
 import sys
+import sqlite3
 from pathlib import Path
 from typing import Optional, List
 from unittest.mock import MagicMock
@@ -20,6 +21,60 @@ except ModuleNotFoundError as err:
     print("    pip install fastapi uvicorn O365 msal requests_oauthlib beautifulsoup4 python-dateutil")
     sys.exit(1)
 
+DB_PATH = Path(__file__).parent / "accounts.db"
+
+
+def init_sqlite_db():
+    """Khởi tạo bảng accounts trong SQLite Database"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS accounts (
+                email TEXT PRIMARY KEY,
+                account_str TEXT NOT NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+
+def save_account_to_db(account_str: str) -> Optional[str]:
+    """Lưu/Cập nhật thông tin tài khoản vào SQLite Database"""
+    acc = parse_account_string(account_str)
+    email = acc['username'].strip().lower()
+    if not email or '@' not in email:
+        return None
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO accounts (email, account_str, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(email) DO UPDATE SET
+                account_str = excluded.account_str,
+                updated_at = datetime('now')
+        """, (email, account_str))
+        conn.commit()
+    return email
+
+
+def get_account_from_db(query_key: str) -> Optional[str]:
+    """Tra cứu chuỗi tài khoản từ SQLite DB (Case-insensitive multi-field search per User Rule #4)"""
+    clean_key = query_key.strip().lower()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT account_str FROM accounts 
+            WHERE LOWER(email) = LOWER(?) OR LOWER(account_str) LIKE LOWER(?)
+            ORDER BY updated_at DESC LIMIT 1
+        """, (clean_key, f"%{clean_key}%"))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+    return None
+
+
+init_sqlite_db()
+
 app = FastAPI(
     title="Outlook Mail & OTP Extractor Dashboard",
     description="API Server và Giao diện Web lấy mã OTP 1-click & xem toàn bộ hòm thư Outlook.",
@@ -30,6 +85,7 @@ app = FastAPI(
 static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 
 
 class AccountCodeRequest(BaseModel):
@@ -116,19 +172,38 @@ def read_root():
     return {"message": "Web UI chưa khởi tạo. Vui lòng tạo static/index.html"}
 
 
-@app.get("/health")
-def health_check():
-    """Endpoint kiểm tra sức khỏe của API Server"""
-    return {"status": "ok", "service": "Outlook OTP Extractor API Server"}
+@app.get("/api/accounts")
+def list_saved_accounts():
+    """Lấy danh sách tất cả tài khoản đã lưu trong SQLite Database"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT email, account_str, updated_at FROM accounts ORDER BY updated_at DESC")
+        rows = cursor.fetchall()
+        items = [{"email": r[0], "account_str": r[1], "updated_at": r[2]} for r in rows]
+        return {"status": "success", "accounts": items}
 
 
 @app.post("/api/get-code", response_model=OTPCodeResponse)
 def get_verification_code(req: AccountCodeRequest):
     """
-    Nhận chuỗi tài khoản email|password|refresh_token|client_id,
+    Nhận chuỗi tài khoản email|password|refresh_token|client_id (hoặc tên email để tra cứu từ SQLite DB),
     đọc hòm thư Outlook và trả về mã OTP cùng toàn bộ danh sách email.
     """
-    acc_info = parse_account_string(req.account_str)
+    raw_input = req.account_str.strip()
+    account_str = raw_input
+
+    # Nếu chuỗi không chứa dấu |, thử tra cứu chuỗi đầy đủ từ SQLite DB per User Rule #4
+    if '|' not in raw_input:
+        db_acc = get_account_from_db(raw_input)
+        if db_acc:
+            account_str = db_acc
+        else:
+            raise HTTPException(status_code=400, detail=f"Không tìm thấy thông tin tài khoản cho key/email '{raw_input}' trong SQLite Database.")
+
+    # Tự động lưu/cập nhật tài khoản vào SQLite DB
+    save_account_to_db(account_str)
+
+    acc_info = parse_account_string(account_str)
     username = acc_info['username']
     client_id = acc_info['client_id'] or "9e5f94bc-e8a4-4e73-b8be-63364c29d753"
 
@@ -137,6 +212,7 @@ def get_verification_code(req: AccountCodeRequest):
 
     protocol = MSGraphProtocol(api_version='v1.0')
     account = Account((client_id,), protocol=protocol, auth_flow_type='public', username=username)
+
 
     if req.use_mock:
         account.con = MagicMock()

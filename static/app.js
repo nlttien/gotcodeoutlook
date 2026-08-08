@@ -21,13 +21,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allFetchedEmails = [];
 
-    // 1. Kiểm tra sức khỏe API Server
+    const savedAccountsSelect = document.getElementById('saved-accounts-select');
+
+    // Nạp danh sách tài khoản đã lưu trong SQLite DB
+    function loadSavedAccountsFromDB() {
+        fetch('/api/accounts')
+            .then(res => res.json())
+            .then(data => {
+                // Giải bóc mảng an toàn per User Rule #4
+                const accounts = Array.isArray(data) ? data : (data?.accounts || data?.items || []);
+                savedAccountsSelect.innerHTML = '<option value="">-- Chọn tài khoản đã lưu trong Database --</option>';
+                accounts.forEach(acc => {
+                    const opt = document.createElement('option');
+                    opt.value = acc.account_str;
+                    opt.textContent = `${acc.email} (Lần cuối: ${acc.updated_at || '---'})`;
+                    savedAccountsSelect.appendChild(opt);
+                });
+            })
+            .catch(err => console.error('Lỗi khi nạp tài khoản SQLite DB:', err));
+    }
+
+    if (savedAccountsSelect) {
+        savedAccountsSelect.addEventListener('change', (e) => {
+            if (e.target.value) {
+                accountInput.value = e.target.value;
+            }
+        });
+    }
+
+    // 1. Kiểm tra sức khỏe API Server & Nạp DB
     fetch('/health')
         .then(res => res.json())
         .then(data => {
             const serverStatus = document.getElementById('server-status');
             if (data.status === 'ok') {
                 serverStatus.innerHTML = '<span class="pulse-dot"></span> Server Sẵn sàng';
+                loadSavedAccountsFromDB();
             }
         })
         .catch(() => {
@@ -37,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
             serverStatus.style.borderColor = 'rgba(248, 113, 113, 0.2)';
             serverStatus.innerHTML = '⚠️ Server Mất Kết Nối';
         });
+
 
     // 2. Xử lý nút Lấy mã OTP & Đọc Mail
     btnFetch.addEventListener('click', async () => {
@@ -90,6 +120,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Render Email Dashboard List
             allFetchedEmails = data.all_messages || [];
             renderEmailList(allFetchedEmails);
+            loadSavedAccountsFromDB();
+
 
         } catch (err) {
             showToast(`Lỗi: ${err.message}`, 'error');

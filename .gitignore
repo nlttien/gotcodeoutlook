@@ -85,3 +85,4 @@ local_tests/
 
 # Output test data
 tests_manual/output/
+*.db
