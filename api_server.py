@@ -163,6 +163,20 @@ def extract_otp_code(text: str) -> List[str]:
 
 
 
+def delete_account_from_db(email: str) -> bool:
+    """Xóa tài khoản khỏi SQLite Database theo email (Case-insensitive)"""
+    clean_email = email.strip().lower()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM accounts WHERE LOWER(email) = LOWER(?)", (clean_email,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+class AddAccountRequest(BaseModel):
+    account_str: str = Field(..., description="Dòng thông tin tài khoản dạng email|password|refresh_token|client_id")
+
+
 @app.get("/")
 def read_root():
     """Phục vụ trang Giao diện Web UI Dashboard"""
@@ -170,6 +184,15 @@ def read_root():
     if index_file.exists():
         return FileResponse(index_file)
     return {"message": "Web UI chưa khởi tạo. Vui lòng tạo static/index.html"}
+
+
+@app.get("/admin")
+def read_admin():
+    """Phục vụ trang Giao diện Quản trị SQLite Database Admin"""
+    admin_file = static_dir / "admin.html"
+    if admin_file.exists():
+        return FileResponse(admin_file)
+    return {"message": "Admin Web UI chưa khởi tạo. Vui lòng tạo static/admin.html"}
 
 
 @app.get("/api/accounts")
@@ -181,6 +204,25 @@ def list_saved_accounts():
         rows = cursor.fetchall()
         items = [{"email": r[0], "account_str": r[1], "updated_at": r[2]} for r in rows]
         return {"status": "success", "accounts": items}
+
+
+@app.post("/api/accounts/add")
+def add_new_account(req: AddAccountRequest):
+    """Thêm hoặc cập nhật tài khoản vào SQLite Database"""
+    email = save_account_to_db(req.account_str)
+    if not email:
+        raise HTTPException(status_code=400, detail="Chuỗi account_str không chứa địa chỉ email hợp lệ.")
+    return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
+
+
+@app.delete("/api/accounts/{email:path}")
+def delete_account(email: str):
+    """Xóa tài khoản khỏi SQLite Database theo email"""
+    success = delete_account_from_db(email)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy tài khoản '{email}' trong SQLite Database.")
+    return {"status": "success", "message": f"Đã xóa tài khoản {email} khỏi SQLite Database"}
+
 
 
 @app.post("/api/get-code", response_model=OTPCodeResponse)

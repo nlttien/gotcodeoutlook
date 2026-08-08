@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang Quản trị SQLite Database - Outlook OTP Extractor</title>
+    <meta name="description" content="Giao diện quản trị cơ sở dữ liệu SQLite bảng tài khoản Outlook tiện lợi.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-background"></div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>Trang Quản trị SQLite Database</h1>
+                    <p class="subtitle">Quản lý Bảng Tài khoản Outlook (accounts.db)</p>
+                </div>
+            </div>
+            <div class="header-actions" style="display: flex; gap: 12px;">
+                <a href="/" class="btn btn-copy"><i class="fa-solid fa-house"></i> Dashboard</a>
+                <span class="status-badge online" id="server-status">
+                    <span class="pulse-dot"></span> SQLite Active
+                </span>
+            </div>
+        </header>
+
+        <!-- Form Thêm mới Tài khoản -->
+        <section class="card form-card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-user-plus"></i> Thêm / Cập nhật Tài khoản vào SQLite DB</h2>
+                <p>Nhập chuỗi tài khoản dạng <code>email|password|refresh_token|client_id</code> để lưu trữ lâu dài</p>
+            </div>
+
+            <div class="form-group">
+                <textarea 
+                    id="admin-account-str-input" 
+                    rows="3" 
+                    placeholder="sylvesterrojas997795@outlook.com|ylvesterRojas2286|M.C560_BAY...|9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+                ></textarea>
+            </div>
+
+            <button id="btn-add-account" class="btn btn-primary">
+                <i class="fa-solid fa-plus-circle"></i> Thêm vào SQLite DB
+            </button>
+        </section>
+
+        <!-- Bảng Danh sách Tài khoản SQLite -->
+        <section class="card">
+            <div class="card-header flex-between">
+                <div>
+                    <h2><i class="fa-solid fa-table-list"></i> Bảng Dữ liệu Tài khoản (`accounts`)</h2>
+                    <p id="account-total-text">Tổng số: 0 tài khoản</p>
+                </div>
+                <div class="search-box" style="width: 280px;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="admin-search-input" placeholder="Tìm theo Email hoặc chuỗi token...">
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Email (Key)</th>
+                            <th>Chuỗi Tài khoản (Account String)</th>
+                            <th>Thời gian Cập nhật</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accounts-table-body">
+                        <tr>
+                            <td colspan="5" class="text-center" style="padding: 30px; color: var(--text-muted);">
+                                <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách dữ liệu...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <i class="fa-solid fa-check-circle"></i> <span id="toast-message">Đã cập nhật!</span>
+    </div>
+
+    <script src="/static/admin.js"></script>
+</body>
+</html>
