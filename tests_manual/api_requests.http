@@ -14,12 +14,20 @@ Content-Type: application/json
 }
 
 
-### 3. Trích xuất mã OTP từ hòm thư Outlook thật (Chế độ Thực tế)
-POST http://127.0.0.1:8000/api/get-code
+### 3. Endpoint mới (GET): Lấy mã OTP chỉ bằng Query Param Email
+GET http://127.0.0.1:8000/api/get-code-by-email?email=sylvesterrojas997795@outlook.com
+Accept: application/json
+
+
+### 4. Endpoint mới (POST): Lấy mã OTP chỉ bằng Body JSON Email
+POST http://127.0.0.1:8000/api/get-code-by-email
 Content-Type: application/json
 
 {
-  "account_str": "your_email@outlook.com|your_password|your_refresh_token|9e5f94bc-e8a4-4e73-b8be-63364c29d753",
-  "keyword": null,
-  "use_mock": false
+  "email": "sylvesterrojas997795@outlook.com"
 }
+
+
+### 5. Quản lý danh sách tài khoản đã lưu trong SQLite DB
+GET http://127.0.0.1:8000/api/accounts
+Accept: application/json

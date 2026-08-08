@@ -250,6 +250,12 @@ def add_new_account(req: AddAccountRequest):
     return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
 
 
+class EmailOnlyRequest(BaseModel):
+    email: str = Field(..., description="Địa chỉ email tài khoản Outlook (VD: sylvesterrojas997795@outlook.com)")
+    keyword: Optional[str] = Field(None, description="Từ khóa lọc email")
+    limit: Optional[int] = Field(15, description="Số lượng email tối đa cần đọc")
+
+
 @app.delete("/api/accounts/{email:path}")
 def delete_account(email: str):
     """Xóa tài khoản khỏi SQLite Database theo email"""
@@ -259,7 +265,24 @@ def delete_account(email: str):
     return {"status": "success", "message": f"Đã xóa tài khoản {email} khỏi SQLite Database"}
 
 
+@app.get("/api/get-code-by-email")
+def get_code_by_email_get(email: str, keyword: Optional[str] = None, limit: int = 15):
+    """
+    Endpoint mới (GET): Chỉ cần truyền query param ?email=your_email@outlook.com để nhận mã OTP.
+    Ví dụ: GET /api/get-code-by-email?email=sylvesterrojas997795@outlook.com
+    """
+    req = AccountCodeRequest(account_str=email, keyword=keyword, limit=limit, use_mock=False)
+    return get_verification_code(req)
 
+
+@app.post("/api/get-code-by-email")
+def get_code_by_email_post(req: EmailOnlyRequest):
+    """
+    Endpoint mới (POST): Chỉ cần truyền body JSON {"email": "your_email@outlook.com"} để nhận mã OTP.
+    Ví dụ: POST /api/get-code-by-email với body {"email": "sylvesterrojas997795@outlook.com"}
+    """
+    code_req = AccountCodeRequest(account_str=req.email, keyword=req.keyword, limit=req.limit or 15, use_mock=False)
+    return get_verification_code(code_req)
 
 
 @app.post("/api/get-code", response_model=OTPCodeResponse)
@@ -268,6 +291,7 @@ def get_verification_code(req: AccountCodeRequest):
     Nhận chuỗi tài khoản email|password|refresh_token|client_id (hoặc tên email để tra cứu từ SQLite DB),
     đọc hòm thư Outlook và trả về mã OTP cùng toàn bộ danh sách email.
     """
+
     raw_input = req.account_str.strip()
     account_str = raw_input
 
