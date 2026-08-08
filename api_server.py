@@ -11,11 +11,13 @@ from unittest.mock import MagicMock
 
 try:
     from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse
     from pydantic import BaseModel, Field
     import uvicorn
     from O365 import Account, MSGraphProtocol
+
 except ModuleNotFoundError as err:
     print(f"[!] Thiếu thư viện phụ thuộc ({err}). Vui lòng chạy lệnh:")
     print("    pip install fastapi uvicorn O365 msal requests_oauthlib beautifulsoup4 python-dateutil")
@@ -105,6 +107,15 @@ app = FastAPI(
     description="API Server và Giao diện Web lấy mã OTP 1-click & xem toàn bộ hòm thư Outlook.",
     version="2.0.0"
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Phục vụ các tệp tĩnh (CSS, JS, Images)
 static_dir = Path(__file__).parent / "static"
