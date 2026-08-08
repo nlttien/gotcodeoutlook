@@ -222,11 +222,11 @@ def get_verification_code(req: AccountCodeRequest):
             dt_str = str(getattr(msg, 'created', '') or '')
             has_att = bool(getattr(msg, 'has_attachments', False))
 
+            full_body = str(getattr(msg, 'body', '') or bp)
             c_sub = extract_otp_code(sub)
-            c_body = extract_otp_code(bp)
+            c_body = extract_otp_code(full_body)
             msg_codes = list(dict.fromkeys(c_sub + c_body))
 
-            full_body = str(getattr(msg, 'body', '') or bp)
             parsed_email_items.append(EmailItem(
                 id=str(getattr(msg, 'object_id', 'msg_id')),
                 subject=sub,
@@ -237,6 +237,7 @@ def get_verification_code(req: AccountCodeRequest):
                 has_attachments=has_att,
                 otp_codes=msg_codes
             ))
+
 
 
         target_msg = parsed_email_items[0]
