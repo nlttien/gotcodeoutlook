@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outlook Mail & OTP Extractor Dashboard</title>
+    <meta name="description" content="Giao diện công cụ tự động lấy mã OTP xác nhận và duyệt hòm thư Outlook Microsoft tiện lợi 1-click.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-background"></div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-envelope-open-text"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>Outlook OTP Extractor</h1>
+                    <p class="subtitle">Hệ thống Trích xuất Mã Xác nhận & Quản lý Hòm thư Outlook</p>
+                </div>
+            </div>
+            <div class="header-status">
+                <span class="status-badge online" id="server-status">
+                    <span class="pulse-dot"></span> Server Sẵn sàng
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Content Layout -->
+        <main class="main-grid">
+            <!-- Left Side: Account Input Form -->
+            <section class="card form-card">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-key"></i> Nhập Thông tin Tài khoản</h2>
+                    <p>Dán chuỗi tài khoản dạng <code>email|password|refresh_token|client_id</code></p>
+                </div>
+
+                <div class="form-group">
+                    <label for="account-str-input">
+                        Chuỗi Tài khoản Outlook <span class="required">*</span>
+                    </label>
+                    <textarea 
+                        id="account-str-input" 
+                        rows="4" 
+                        placeholder="crystalpark444725@outlook.com|CrystalPark55|M.C560_BAY.0.U.MsaArtifacts...|9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+                    ></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="keyword-input">
+                            <i class="fa-solid fa-magnifying-glass"></i> Từ khóa Lọc (Tùy chọn)
+                        </label>
+                        <input type="text" id="keyword-input" placeholder="VD: OTP, mã xác nhận, Code...">
+                    </div>
+
+                    <div class="form-group half">
+                        <label for="limit-input">
+                            <i class="fa-solid fa-list-ol"></i> Số lượng Mail Quét
+                        </label>
+                        <select id="limit-input">
+                            <option value="5">5 Email mới nhất</option>
+                            <option value="15" selected>15 Email mới nhất</option>
+                            <option value="30">30 Email mới nhất</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <span><i class="fa-solid fa-microchip"></i> Chế độ Giả lập (Mock Test)</span>
+                        <input type="checkbox" id="mock-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <button id="btn-fetch" class="btn btn-primary btn-block">
+                    <span class="btn-text"><i class="fa-solid fa-paper-plane"></i> LẤY MÃ OTP & ĐỌC MAIL</span>
+                    <span class="btn-loader hidden"><i class="fa-solid fa-circle-notch fa-spin"></i> Đang đọc hòm thư...</span>
+                </button>
+            </section>
+
+            <!-- Right Side: OTP Result & Email Dashboard -->
+            <section class="right-column">
+                <!-- OTP Hero Card -->
+                <div class="card otp-hero-card" id="otp-card">
+                    <div class="otp-header">
+                        <span class="badge badge-primary"><i class="fa-solid fa-shield-halved"></i> Mã Xác nhận OTP Mới Nhất</span>
+                        <span class="otp-time" id="otp-time">---</span>
+                    </div>
+
+                    <div class="otp-display-wrapper">
+                        <div class="otp-code-box" id="otp-code-display">------</div>
+                        <button class="btn btn-copy" id="btn-copy-otp" title="Copy mã OTP">
+                            <i class="fa-regular fa-copy"></i> Copy OTP
+                        </button>
+                    </div>
+
+                    <div class="otp-meta" id="otp-meta">
+                        <p class="otp-subject"><i class="fa-solid fa-heading"></i> <strong>Tiêu đề:</strong> <span id="otp-subject-text">Vui lòng bấm 'Lấy mã OTP'</span></p>
+                        <p class="otp-sender"><i class="fa-solid fa-user"></i> <strong>Người gửi:</strong> <span id="otp-sender-text">---</span></p>
+                    </div>
+                </div>
+
+                <!-- Email List Dashboard -->
+                <div class="card emails-card">
+                    <div class="card-header flex-between">
+                        <div>
+                            <h2><i class="fa-solid fa-inbox"></i> Danh sách Email trong Hòm thư</h2>
+                            <p id="email-count-text">Hiển thị 0 email</p>
+                        </div>
+                        <div class="search-box">
+                            <i class="fa-solid fa-filter"></i>
+                            <input type="text" id="filter-emails-input" placeholder="Lọc danh sách email...">
+                        </div>
+                    </div>
+
+                    <div class="emails-list" id="emails-list-container">
+                        <div class="empty-state">
+                            <i class="fa-regular fa-folder-open empty-icon"></i>
+                            <p>Chưa có dữ liệu. Vui lòng nhập dòng tài khoản và nhấn <strong>'Lấy Mã OTP & Đọc Mail'</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">
+        <i class="fa-solid fa-check-circle"></i> <span id="toast-message">Đã sao chép mã OTP!</span>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

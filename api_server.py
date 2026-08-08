@@ -1,14 +1,17 @@
 """
-API Server: Dịch vụ trích xuất mã xác nhận (OTP / Verification Code) từ hòm thư Outlook bằng python-o365.
+API Server & Web UI: Dịch vụ trích xuất mã xác nhận (OTP) và hiển thị hòm thư Outlook bằng python-o365 + FastAPI.
 """
 
 import re
 import sys
+from pathlib import Path
 from typing import Optional, List
 from unittest.mock import MagicMock
 
 try:
     from fastapi import FastAPI, HTTPException
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
     from pydantic import BaseModel, Field
     import uvicorn
     from O365 import Account, MSGraphProtocol
@@ -18,24 +21,38 @@ except ModuleNotFoundError as err:
     sys.exit(1)
 
 app = FastAPI(
-    title="Outlook OTP Extractor API",
-    description="API nhận dòng thông tin tài khoản Outlook và trích xuất mã xác nhận (OTP / Code) mới nhất.",
-    version="1.0.0"
+    title="Outlook Mail & OTP Extractor Dashboard",
+    description="API Server và Giao diện Web lấy mã OTP 1-click & xem toàn bộ hòm thư Outlook.",
+    version="2.0.0"
 )
+
+# Phục vụ các tệp tĩnh (CSS, JS, Images)
+static_dir = Path(__file__).parent / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
 class AccountCodeRequest(BaseModel):
     account_str: str = Field(
         ...,
-        description="Dòng thông tin tài khoản dạng: email|password|refresh_token|client_id",
-        example="christinakazunas1125@outlook.com|ChristinaKazunas694|M.C542_BAY...|9e5f94bc-e8a4-4e73-b8be-63364c29d753"
+        description="Dòng thông tin tài khoản dạng: email|password|refresh_token|client_id"
     )
     keyword: Optional[str] = Field(
         default=None,
-        description="Từ khóa lọc email (VD: OTP, code, mã xác nhận, Facebook, Google...)"
+        description="Từ khóa lọc email (VD: OTP, code, mã xác nhận, Facebook...)"
     )
-    limit: int = Field(default=5, ge=1, le=20, description="Số lượng email gần nhất cần quét")
+    limit: int = Field(default=15, ge=1, le=50, description="Số lượng email gần nhất cần quét")
     use_mock: bool = Field(default=False, description="Đặt True để chạy test dữ liệu giả lập, False để kết nối mail thật")
+
+
+class EmailItem(BaseModel):
+    id: str
+    subject: str
+    sender: str
+    created_date: str
+    body_preview: str
+    has_attachments: bool
+    otp_codes: List[str] = []
 
 
 class OTPCodeResponse(BaseModel):
@@ -47,13 +64,13 @@ class OTPCodeResponse(BaseModel):
     received_time: Optional[str] = None
     message_preview: Optional[str] = None
     all_codes_found: List[str] = []
+    all_messages: List[EmailItem] = []
 
 
 def parse_account_string(account_str: str) -> dict:
     """Bóc tách dòng thông tin tài khoản định dạng: email|password|refresh_token|client_id"""
     parts = [p.strip() for p in account_str.split('|')]
     rf = parts[2] if len(parts) > 2 else ''
-    # Xử lý tự động chuyển đuôi $$ thành $ nếu bị escape
     if rf.endswith('$$'):
         rf = rf[:-1]
     return {
@@ -64,40 +81,41 @@ def parse_account_string(account_str: str) -> dict:
     }
 
 
-
 def extract_otp_code(text: str) -> List[str]:
     """Trích xuất danh sách mã xác nhận (4-8 chữ số) từ văn bản"""
     if not text:
         return []
-    
-    # Loại bỏ năm 202X, 201X để tránh nhầm năm với mã OTP
     cleaned_text = re.sub(r'\b20[12]\d\b', '', text)
-    
-    # Tìm tất cả các dãy số từ 4 đến 8 chữ số
     matches = re.findall(r'\b\d{4,8}\b', cleaned_text)
-    
-    # Loại bỏ trùng lặp và giữ nguyên thứ tự xuất hiện
     seen = set()
     unique_codes = []
     for code in matches:
         if code not in seen:
             seen.add(code)
             unique_codes.append(code)
-            
     return unique_codes
+
+
+@app.get("/")
+def read_root():
+    """Phục vụ trang Giao diện Web UI Dashboard"""
+    index_file = static_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+    return {"message": "Web UI chưa khởi tạo. Vui lòng tạo static/index.html"}
 
 
 @app.get("/health")
 def health_check():
     """Endpoint kiểm tra sức khỏe của API Server"""
-    return {"status": "ok", "service": "Outlook OTP Extractor API"}
+    return {"status": "ok", "service": "Outlook OTP Extractor API Server"}
 
 
 @app.post("/api/get-code", response_model=OTPCodeResponse)
 def get_verification_code(req: AccountCodeRequest):
     """
     Nhận chuỗi tài khoản email|password|refresh_token|client_id,
-    đọc hòm thư Outlook và trả về mã xác nhận (OTP) mới nhất.
+    đọc hòm thư Outlook và trả về mã OTP cùng toàn bộ danh sách email.
     """
     acc_info = parse_account_string(req.account_str)
     username = acc_info['username']
@@ -127,12 +145,20 @@ def get_verification_code(req: AccountCodeRequest):
                     'isRead': False,
                     'hasAttachments': False,
                     'createdDateTime': '2026-08-08T11:20:00Z'
+                },
+                {
+                    'id': 'msg_mock_002',
+                    'subject': 'Xác nhận đơn hàng #99482',
+                    'bodyPreview': 'Đơn hàng Path Of Exile của bạn đã được xác nhận thành công.',
+                    'sender': {'emailAddress': {'name': 'Xsolla Mailer', 'address': 'mailer@xsolla.com'}},
+                    'isRead': True,
+                    'hasAttachments': True,
+                    'createdDateTime': '2026-08-07T14:30:00Z'
                 }
             ]
         }
         account.con.get.return_value = mock_response
     else:
-        # Nếu có refresh_token trong account_str, tự động lấy access_token thật từ Microsoft
         refresh_token = acc_info.get('refresh_token')
         if refresh_token:
             import requests
@@ -146,19 +172,15 @@ def get_verification_code(req: AccountCodeRequest):
             res = requests.post(token_url, data=data)
             if res.status_code == 200 and 'access_token' in res.json():
                 access_token = res.json()['access_token']
-                # Nạp access_token vào session kết nối O365
                 account.con.token_backend._cache = {'access_token': {'secret': access_token}}
                 account.con.token_backend.token_is_expired = lambda username=None: False
                 account.con.token_backend.token_is_long_lived = lambda username=None: True
                 if account.con.session is None:
                     account.con.session = account.con.get_session(load_token=False)
                 account.con.session.headers['Authorization'] = f'Bearer {access_token}'
-
-
             else:
                 err_msg = res.json().get('error_description', res.text)
                 raise HTTPException(status_code=400, detail=f"Không thể lấy access_token từ refresh_token: {err_msg}")
-
 
     try:
         mailbox = account.mailbox()
@@ -171,10 +193,8 @@ def get_verification_code(req: AccountCodeRequest):
 
         messages = list(inbox.get_messages(limit=req.limit, query=query))
 
-        # Nếu lọc theo từ khóa không thấy mail nào, tự động lấy các mail gần nhất trong Inbox
         if not messages and req.keyword:
             messages = list(inbox.get_messages(limit=req.limit))
-
 
         if not messages:
             return OTPCodeResponse(
@@ -183,27 +203,48 @@ def get_verification_code(req: AccountCodeRequest):
                 otp_code=None
             )
 
-        target_msg = messages[0]
-        subject = getattr(target_msg, 'subject', '')
-        body_preview = getattr(target_msg, 'body_preview', str(target_msg.body))
-        sender = str(getattr(target_msg, 'sender', ''))
-        received_time = str(getattr(target_msg, 'created', ''))
+        parsed_email_items: List[EmailItem] = []
+        for msg in messages:
+            sub = getattr(msg, 'subject', '') or ''
+            bp = getattr(msg, 'body_preview', str(msg.body or '')) or ''
+            snd = str(getattr(msg, 'sender', '') or '')
+            dt_str = str(getattr(msg, 'created', '') or '')
+            has_att = bool(getattr(msg, 'has_attachments', False))
 
-        codes_in_subject = extract_otp_code(subject)
-        codes_in_body = extract_otp_code(body_preview)
+            c_sub = extract_otp_code(sub)
+            c_body = extract_otp_code(bp)
+            msg_codes = list(dict.fromkeys(c_sub + c_body))
 
-        all_codes = list(dict.fromkeys(codes_in_subject + codes_in_body))
-        primary_otp = all_codes[0] if all_codes else None
+            parsed_email_items.append(EmailItem(
+                id=str(getattr(msg, 'object_id', 'msg_id')),
+                subject=sub,
+                sender=snd,
+                created_date=dt_str,
+                body_preview=bp,
+                has_attachments=has_att,
+                otp_codes=msg_codes
+            ))
+
+        target_msg = parsed_email_items[0]
+        primary_otp = target_msg.otp_codes[0] if target_msg.otp_codes else None
+
+        if not primary_otp:
+            for item in parsed_email_items:
+                if item.otp_codes:
+                    primary_otp = item.otp_codes[0]
+                    target_msg = item
+                    break
 
         return OTPCodeResponse(
             status="success" if primary_otp else "no_otp_code_found",
             email=username,
             otp_code=primary_otp,
-            subject=subject,
-            sender=sender,
-            received_time=received_time,
-            message_preview=body_preview,
-            all_codes_found=all_codes
+            subject=target_msg.subject,
+            sender=target_msg.sender,
+            received_time=target_msg.created_date,
+            message_preview=target_msg.body_preview,
+            all_codes_found=target_msg.otp_codes,
+            all_messages=parsed_email_items
         )
 
     except Exception as e:
@@ -211,5 +252,5 @@ def get_verification_code(req: AccountCodeRequest):
 
 
 if __name__ == '__main__':
-    print("Đang khởi chạy API Server tại http://0.0.0.0:8000...")
+    print("Đang khởi chạy API Server & Web UI Dashboard tại http://0.0.0.0:8000...")
     uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=False)
