@@ -13,7 +13,23 @@ except ModuleNotFoundError as err:
     sys.exit(0)
 
 
-def test_outlook_mail_operations(client_id="MOCK_CLIENT_ID", client_secret="MOCK_CLIENT_SECRET", use_mock=True):
+def parse_account_string(account_str: str) -> dict:
+    """Bóc tách chuỗi tài khoản định dạng: email|password|refresh_token|client_id"""
+    parts = [p.strip() for p in account_str.split('|')]
+    return {
+        'username': parts[0] if len(parts) > 0 else '',
+        'password': parts[1] if len(parts) > 1 else '',
+        'refresh_token': parts[2] if len(parts) > 2 else '',
+        'client_id': parts[3] if len(parts) > 3 else ''
+    }
+
+
+def test_outlook_mail_operations(client_id="MOCK_CLIENT_ID", client_secret="MOCK_CLIENT_SECRET", use_mock=True, account_str=None):
+    if account_str:
+        acc_info = parse_account_string(account_str)
+        print(f"[ACCOUNT INFO] Email: {acc_info['username']} | Client ID: {acc_info['client_id']}")
+        if acc_info['client_id']:
+            client_id = acc_info['client_id']
     print("=" * 60)
     print(" 1. KHỞI TẠO TÀI KHOẢN (ACCOUNT)")
     print("=" * 60)
