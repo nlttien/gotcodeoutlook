@@ -265,11 +265,19 @@ class BatchAddAccountsRequest(BaseModel):
 
 @app.post("/api/accounts/add")
 def add_new_account(req: AddAccountRequest):
-    """Thêm hoặc cập nhật tài khoản vào SQLite Database"""
-    email = save_account_to_db(req.account_str)
-    if not email:
-        raise HTTPException(status_code=400, detail="Chuỗi account_str không chứa địa chỉ email hợp lệ.")
-    return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
+    """Thêm hoặc cập nhật tài khoản vào SQLite Database (Hỗ trợ 1 hoặc nhiều dòng)"""
+    raw_str = req.account_str.strip()
+    if not raw_str:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập chuỗi tài khoản hợp lệ.")
+
+    lines = [l.strip() for l in raw_str.splitlines() if l.strip()]
+    if len(lines) == 1:
+        email = save_account_to_db(lines[0])
+        if not email:
+            raise HTTPException(status_code=400, detail="Chuỗi account_str không chứa địa chỉ email hợp lệ.")
+        return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
+    else:
+        return batch_add_accounts(BatchAddAccountsRequest(accounts=lines))
 
 
 @app.post("/api/accounts/batch")
@@ -295,7 +303,8 @@ def batch_add_accounts(req: BatchAddAccountsRequest):
                 processed_emails.append(email)
             else:
                 failed_count += 1
-        except Exception:
+        except Exception as e:
+            print(f"Lỗi import dòng '{line[:30]}...': {e}")
             failed_count += 1
 
     return {
@@ -305,6 +314,7 @@ def batch_add_accounts(req: BatchAddAccountsRequest):
         "failed_count": failed_count,
         "emails": processed_emails
     }
+
 
 
 
