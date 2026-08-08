@@ -165,14 +165,15 @@ def parse_account_string(account_str: str) -> dict:
     """Bóc tách dòng thông tin tài khoản định dạng: email|password|refresh_token|client_id"""
     parts = [p.strip() for p in account_str.split('|')]
     rf = parts[2] if len(parts) > 2 else ''
-    if rf.endswith('$$'):
-        rf = rf[:-1]
+    # Loại bỏ các dấu $ thừa ở cuối chuỗi token (nếu có)
+    rf = rf.rstrip('$')
     return {
         'username': parts[0] if len(parts) > 0 else '',
         'password': parts[1] if len(parts) > 1 else '',
         'refresh_token': rf,
         'client_id': parts[3] if len(parts) > 3 else ''
     }
+
 
 
 def extract_otp_code(text: str) -> List[str]:
@@ -440,8 +441,14 @@ def get_verification_code(req: AccountCodeRequest):
                     account.con.session = account.con.get_session(load_token=False)
                 account.con.session.headers['Authorization'] = f'Bearer {access_token}'
             else:
-                err_msg = res.json().get('error_description', res.text)
-                raise HTTPException(status_code=400, detail=f"Không thể lấy access_token từ refresh_token: {err_msg}")
+                err_data = res.json() if res.headers.get('content-type', '').startswith('application/json') else {}
+                err_msg = err_data.get('error_description', res.text)
+                if 'AADSTS70000' in err_msg or 'invalid_grant' in err_data.get('error', ''):
+                    detail_msg = f"Token Outlook của tài khoản '{username}' đã bị hết hạn hoặc bị thay đổi mật khẩu từ phía Microsoft (Mã lỗi: AADSTS70000). Vui lòng cập nhật dòng token mới."
+                else:
+                    detail_msg = f"Không thể lấy access_token từ refresh_token: {err_msg}"
+                raise HTTPException(status_code=400, detail=detail_msg)
+
 
     try:
         mailbox = account.mailbox()
