@@ -266,5 +266,8 @@ def get_verification_code(req: AccountCodeRequest):
 
 
 if __name__ == '__main__':
-    print("Đang khởi chạy API Server & Web UI Dashboard tại http://0.0.0.0:8000...")
-    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=False)
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Đang khởi chạy API Server & Web UI Dashboard tại http://0.0.0.0:{port}...")
+    uvicorn.run("api_server:app", host="0.0.0.0", port=port, reload=False)
+
