@@ -126,6 +126,34 @@ def get_verification_code(req: AccountCodeRequest):
             ]
         }
         account.con.get.return_value = mock_response
+    else:
+        # Nếu có refresh_token trong account_str, tự động lấy access_token thật từ Microsoft
+        refresh_token = acc_info.get('refresh_token')
+        if refresh_token:
+            import requests
+            token_url = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token'
+            data = {
+                'client_id': client_id,
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token,
+                'scope': 'https://graph.microsoft.com/Mail.Read'
+            }
+            res = requests.post(token_url, data=data)
+            if res.status_code == 200 and 'access_token' in res.json():
+                access_token = res.json()['access_token']
+                # Nạp access_token vào session kết nối O365
+                account.con.token_backend._cache = {'access_token': {'secret': access_token}}
+                account.con.token_backend.token_is_expired = lambda username=None: False
+                account.con.token_backend.token_is_long_lived = lambda username=None: True
+                if account.con.session is None:
+                    account.con.session = account.con.get_session(load_token=False)
+                account.con.session.headers['Authorization'] = f'Bearer {access_token}'
+
+
+            else:
+                err_msg = res.json().get('error_description', res.text)
+                raise HTTPException(status_code=400, detail=f"Không thể lấy access_token từ refresh_token: {err_msg}")
+
 
     try:
         mailbox = account.mailbox()
