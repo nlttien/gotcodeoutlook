@@ -84,18 +84,27 @@ def parse_account_string(account_str: str) -> dict:
 
 
 def extract_otp_code(text: str) -> List[str]:
-    """Trích xuất danh sách mã xác nhận (4-8 chữ số) từ văn bản"""
+    """Trích xuất danh sách mã xác nhận (4-8 chữ số hoặc mã dạng 2f4-07e-5d26) từ văn bản"""
     if not text:
         return []
+    
+    # 1. Tìm các mã chứa dấu gạch ngang (VD: 2f4-07e-5d26, ABC-123-XYZ)
+    hyphen_codes = re.findall(r'\b[a-zA-Z0-9]{2,6}(?:-[a-zA-Z0-9]{2,6})+\b', text)
+
+    # 2. Tìm các mã số đơn thuần (4-8 chữ số)
     cleaned_text = re.sub(r'\b20[12]\d\b', '', text)
-    matches = re.findall(r'\b\d{4,8}\b', cleaned_text)
+    digit_codes = re.findall(r'\b\d{4,8}\b', cleaned_text)
+
+    all_matches = hyphen_codes + digit_codes
+
     seen = set()
     unique_codes = []
-    for code in matches:
+    for code in all_matches:
         if code not in seen:
             seen.add(code)
             unique_codes.append(code)
     return unique_codes
+
 
 
 @app.get("/")
