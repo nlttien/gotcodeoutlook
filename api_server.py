@@ -51,13 +51,21 @@ def init_sqlite_db():
 
 
 def save_account_to_db(account_str: str, otp_code: Optional[str] = None, subject: Optional[str] = None, sender: Optional[str] = None) -> Optional[str]:
-    """Lưu / Cập nhật thông tin tài khoản và mã OTP mới nhất vào duy nhất 1 bảng accounts"""
+    """Lưu / Cập nhật thông tin tài khoản và mã OTP mới nhất vào duy nhất 1 bảng accounts trong SQLite DB"""
     acc = parse_account_string(account_str)
     email = acc['username'].strip().lower()
     if not email or '@' not in email:
         return None
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
+        
+        # Nếu chuỗi mới truyền vào không chứa dấy |, kiểm tra xem SQLite DB đã có chuỗi token đầy đủ chưa
+        if '|' not in account_str:
+            cursor.execute("SELECT account_str FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
+            existing = cursor.fetchone()
+            if existing and '|' in existing[0]:
+                account_str = existing[0]
+
         cursor.execute("""
             INSERT INTO accounts (email, account_str, otp_code, subject, sender, updated_at)
             VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -70,6 +78,7 @@ def save_account_to_db(account_str: str, otp_code: Optional[str] = None, subject
         """, (email, account_str, otp_code, subject, sender))
         conn.commit()
     return email
+
 
 
 
