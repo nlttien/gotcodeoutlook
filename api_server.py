@@ -597,13 +597,22 @@ def sync_booster_links(req: BatchSyncBoosterLinksRequest):
                 for email_clean in found_emails:
                     email_clean = email_clean.lower().strip()
 
-                    # Kiểm tra trạng thái hiện tại trong DB: Không ghi đè Hết hạn Token / Ban / Khóa
+                    # Kiểm tra trạng thái hiện tại trong DB:
                     cursor.execute("SELECT status FROM accounts WHERE LOWER(email) = LOWER(?)", (email_clean,))
                     existing = cursor.fetchone()
                     if existing and existing[0]:
                         curr_st = existing[0].lower()
+                        # 1. Không ghi đè Hết hạn Token / Ban / Khóa
                         if "hết hạn" in curr_st or "ban" in curr_st or "khóa" in curr_st:
                             continue
+                        # 2. Ưu tiên PoE 2: Nếu DB đang là PoE 2 thì không hạ xuống PoE 1 hay Diablo
+                        if "poe2" in curr_st or "poe 2" in curr_st or "rương poe2" in curr_st:
+                            if target_status != "đã mua rương poe2 cho trader":
+                                continue
+                        # 3. Ưu tiên PoE 1: Nếu DB đang là PoE 1 thì không hạ xuống Diablo
+                        if ("poe" in curr_st or "poe1" in curr_st) and "poe2" not in curr_st:
+                            if target_status == "đã mua game diablo":
+                                continue
 
                     saved = save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
                     if saved:
