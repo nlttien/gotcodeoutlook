@@ -770,10 +770,13 @@ def get_verification_code(req: AccountCodeRequest):
     # Nếu chuỗi không chứa dấu |, thử tra cứu chuỗi đầy đủ từ SQLite DB per User Rule #4
     if '|' not in raw_input:
         db_acc = get_account_from_db(raw_input)
-        if db_acc:
+        if db_acc and '|' in db_acc:
             account_str = db_acc
         else:
-            raise HTTPException(status_code=400, detail=f"Không tìm thấy thông tin tài khoản cho key/email '{raw_input}' trong SQLite Database.")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tài khoản '{raw_input}' chưa có Script Key (chuỗi token đầy đủ email|password|refresh_token|client_id). Vui lòng bổ sung Script Key.",
+            )
 
     # Tự động lưu/cập nhật tài khoản vào SQLite DB
     save_account_to_db(account_str, user=req.user)
