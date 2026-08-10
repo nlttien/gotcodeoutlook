@@ -61,16 +61,46 @@ def init_sqlite_db():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS account_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL,
+                action TEXT NOT NULL,
+                details TEXT,
+                user TEXT DEFAULT 'System',
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_account_logs_email ON account_logs(email)")
         conn.commit()
+
+
+def add_account_log(email: str, action: str, details: str = "", user: str = "System"):
+    """Ghi nhật ký hoạt động cho tài khoản email vào bảng account_logs"""
+    if not email:
+        return
+    try:
+        clean_email = email.strip().lower()
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO account_logs (email, action, details, user, timestamp)
+                VALUES (?, ?, ?, ?, datetime('now'))
+            """, (clean_email, action, details, user))
+            conn.commit()
+    except Exception as e:
+        print(f"[!] Lỗi khi ghi log cho {email}: {e}")
 
 
 def save_account_to_db(account_str: str, status: Optional[str] = None, otp_code: Optional[str] = None, subject: Optional[str] = None, sender: Optional[str] = None) -> Optional[str]:
     """Lưu / Cập nhật thông tin tài khoản, danh sách trạng thái và mã OTP mới nhất vào duy nhất 1 bảng accounts trong SQLite DB"""
+    if not account_str or not account_str.strip():
+        return None
     acc = parse_account_string(account_str)
     email = acc['username'].strip().lower()
     if not email or '@' not in email:
         return None
-    
+
     # Xử lý chuỗi status (nếu dạng list hoặc tuple thì join)
     if isinstance(status, (list, tuple)):
         status_str = ", ".join([str(s).strip() for s in status if str(s).strip()])
@@ -81,7 +111,11 @@ def save_account_to_db(account_str: str, status: Optional[str] = None, otp_code:
 
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        
+
+        # Kiểm tra xem email đã tồn tại chưa để ghi log đúng action
+        cursor.execute("SELECT email FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
+        is_existing = cursor.fetchone() is not None
+
         # Nếu chuỗi mới truyền vào không chứa dấu |, kiểm tra xem SQLite DB đã có chuỗi token đầy đủ chưa
         if '|' not in account_str:
             cursor.execute("SELECT account_str FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
@@ -101,6 +135,12 @@ def save_account_to_db(account_str: str, status: Optional[str] = None, otp_code:
                 updated_at = datetime('now')
         """, (email, account_str, status_str, otp_code, subject, sender))
         conn.commit()
+
+    if not is_existing:
+        add_account_log(email, action="IMPORT", details=f"Khởi tạo/Import tài khoản. Trạng thái: {status_str or 'Hoạt động'}")
+    elif status_str is not None:
+        add_account_log(email, action="UPDATE_STATUS", details=f"Cập nhật trạng thái thành: {status_str}")
+
     return email
 
 
@@ -445,6 +485,36 @@ class EmailOnlyRequest(BaseModel):
     limit: Optional[int] = Field(15, description="Số lượng email tối đa cần đọc")
 
 
+@app.get("/api/accounts/{email:path}/logs")
+def get_account_logs(email: str):
+    """Lấy danh sách nhật ký hoạt động của tài khoản email (Per Rule #5 Remote Log API)"""
+    clean_email = email.strip().lower()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, email, action, details, user, timestamp 
+            FROM account_logs 
+            WHERE LOWER(email) = LOWER(?) 
+            ORDER BY id DESC LIMIT 100
+        """,
+            (clean_email,),
+        )
+        rows = cursor.fetchall()
+        logs = [
+            {
+                "id": r[0],
+                "email": r[1],
+                "action": r[2],
+                "details": r[3],
+                "user": r[4],
+                "timestamp": r[5],
+            }
+            for r in rows
+        ]
+        return {"status": "success", "email": clean_email, "logs": logs}
+
+
 @app.delete("/api/accounts/delete/{email:path}")
 @app.delete("/api/accounts/{email:path}")
 def delete_account(email: str):
@@ -453,7 +523,11 @@ def delete_account(email: str):
         raise HTTPException(status_code=400, detail="Tên email không hợp lệ.")
     success = delete_account_from_db(email)
     if not success:
-        raise HTTPException(status_code=404, detail=f"Không tìm thấy tài khoản '{email}' trong SQLite Database.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Không tìm thấy tài khoản '{email}' trong SQLite Database.",
+        )
+    add_account_log(email, action="DELETE", details="Xóa tài khoản khỏi SQLite Database")
     return {"status": "success", "message": f"Đã xóa tài khoản {email} khỏi SQLite Database"}
 
 
@@ -657,7 +731,12 @@ def get_verification_code(req: AccountCodeRequest):
             account_str=account_str,
             otp_code=primary_otp,
             subject=target_msg.subject,
-            sender=target_msg.sender
+            sender=target_msg.sender,
+        )
+        add_account_log(
+            username,
+            action="FETCH_OTP",
+            details=f"Đã đọc hòm thư & lấy mã OTP: {primary_otp or 'Không tìm thấy mã'} | Tiêu đề: {target_msg.subject or 'N/A'}",
         )
 
 
