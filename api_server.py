@@ -677,8 +677,8 @@ def auto_renew_outlook_token(account_str: str, user: Optional[str] = None) -> Op
             res_json = res.json()
             if res_json.get("success") and res_json.get("data"):
                 new_account_str = res_json["data"]
-                # Lưu account_str mới và chuyển trạng thái về "Chưa sử dụng"
-                save_account_to_db(account_str=new_account_str, status="Chưa sử dụng", user=user)
+                # Lưu account_str mới và giữ nguyên trạng thái hiện tại
+                save_account_to_db(account_str=new_account_str, status=None, user=user)
                 acc_info = parse_account_string(new_account_str)
                 email = acc_info.get("username")
                 if email:
