@@ -565,34 +565,49 @@ class BatchSyncBoosterLinksRequest(BaseModel):
 
 @app.post("/api/accounts/sync-booster-links")
 def sync_booster_links(req: BatchSyncBoosterLinksRequest):
-    """Đồng bộ tự động trạng thái email từ danh sách Booster Accounts (Diablo -> đã mua game diablo, PoE 1 -> đã mua rương poe1 cho trader, PoE 2 -> đã mua rương poe2 cho trader)"""
+    """Đồng bộ tự động trạng thái email từ danh sách Booster Accounts (Diablo -> đã mua game diablo, PoE 1 -> đã mua rương poe1 cho trader, PoE 2 -> đã mua rương poe2 cho trader)
+    LƯU Ý: Không ghi đè nếu tài khoản đã ở trạng thái 'Hết hạn Token' hoặc 'Khóa/Ban'.
+    """
     updated_count = 0
     performed_by = req.user.strip() if req.user and req.user.strip() else "System"
 
-    for item in req.items:
-        raw_email = (item.email or "").strip()
-        if not raw_email:
-            continue
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
 
-        found_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_email)
-        if not found_emails:
-            continue
+        for item in req.items:
+            raw_email = (item.email or "").strip()
+            if not raw_email:
+                continue
 
-        game_title = (item.game_title or "").lower()
+            found_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_email)
+            if not found_emails:
+                continue
 
-        target_status = None
-        if "poe 2" in game_title or "poe2" in game_title or "path of exile 2" in game_title:
-            target_status = "đã mua rương poe2 cho trader"
-        elif "diablo" in game_title or "d4" in game_title or "d2" in game_title:
-            target_status = "đã mua game diablo"
-        elif "poe" in game_title or "poe1" in game_title or "path of exile" in game_title:
-            target_status = "đã mua rương poe1 cho trader"
+            game_title = (item.game_title or "").lower()
 
-        if target_status:
-            for email_clean in found_emails:
-                email_clean = email_clean.lower().strip()
-                save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
-                updated_count += 1
+            target_status = None
+            if "poe 2" in game_title or "poe2" in game_title or "path of exile 2" in game_title:
+                target_status = "đã mua rương poe2 cho trader"
+            elif "diablo" in game_title or "d4" in game_title or "d2" in game_title:
+                target_status = "đã mua game diablo"
+            elif "poe" in game_title or "poe1" in game_title or "path of exile" in game_title:
+                target_status = "đã mua rương poe1 cho trader"
+
+            if target_status:
+                for email_clean in found_emails:
+                    email_clean = email_clean.lower().strip()
+
+                    # Kiểm tra trạng thái hiện tại trong DB: Không ghi đè Hết hạn Token / Ban / Khóa
+                    cursor.execute("SELECT status FROM accounts WHERE LOWER(email) = LOWER(?)", (email_clean,))
+                    existing = cursor.fetchone()
+                    if existing and existing[0]:
+                        curr_st = existing[0].lower()
+                        if "hết hạn" in curr_st or "ban" in curr_st or "khóa" in curr_st:
+                            continue
+
+                    saved = save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
+                    if saved:
+                        updated_count += 1
 
     return {
         "status": "success",
