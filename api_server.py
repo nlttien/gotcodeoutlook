@@ -131,17 +131,23 @@ def save_account_to_db(
             if existing and '|' in existing[0]:
                 account_str = existing[0]
 
+        # Nếu tài khoản đã tồn tại và không truyền status mới, giữ nguyên status_str là None để không ghi đè
+        effective_status = status_str if status_str else ('Chưa sử dụng' if not is_existing else None)
+
         cursor.execute("""
             INSERT INTO accounts (email, account_str, status, otp_code, subject, sender, updated_at)
-            VALUES (?, ?, COALESCE(?, 'Chưa sử dụng'), ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
             ON CONFLICT(email) DO UPDATE SET
                 account_str = excluded.account_str,
-                status = CASE WHEN excluded.status IS NOT NULL AND excluded.status != '' THEN excluded.status ELSE accounts.status END,
+                status = CASE 
+                    WHEN excluded.status IS NOT NULL AND excluded.status != '' THEN excluded.status 
+                    ELSE COALESCE(accounts.status, 'Chưa sử dụng') 
+                END,
                 otp_code = COALESCE(excluded.otp_code, accounts.otp_code),
                 subject = COALESCE(excluded.subject, accounts.subject),
                 sender = COALESCE(excluded.sender, accounts.sender),
                 updated_at = datetime('now')
-        """, (email, account_str, status_str, otp_code, subject, sender))
+        """, (email, account_str, effective_status, otp_code, subject, sender))
         conn.commit()
 
     performed_by = user.strip() if user and user.strip() else "System"
