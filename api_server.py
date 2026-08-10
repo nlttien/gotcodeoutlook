@@ -649,6 +649,7 @@ def get_verification_code(req: AccountCodeRequest):
 class SettingsPayload(BaseModel):
     allowed_view_roles: Optional[List[str]] = None
     allowed_manage_roles: Optional[List[str]] = None
+    custom_statuses: Optional[List[dict]] = None
 
 
 @app.get("/api/settings")
@@ -671,10 +672,19 @@ def get_settings():
             "Game Currency Admin",
             "Ops Manager",
         ]
+        default_statuses = [
+            {"name": "Hoạt động", "icon": "✅", "color": "emerald"},
+            {"name": "Đang dùng", "icon": "🔥", "color": "indigo"},
+            {"name": "Dự phòng", "icon": "📦", "color": "sky"},
+            {"name": "Tài khoản chính", "icon": "⭐", "color": "purple"},
+            {"name": "Hết hạn Token", "icon": "⚠️", "color": "amber"},
+            {"name": "Khóa/Ban", "icon": "🚫", "color": "red"},
+        ]
         return {
             "status": "success",
             "allowed_view_roles": result.get("allowed_view_roles", default_roles),
             "allowed_manage_roles": result.get("allowed_manage_roles", default_roles),
+            "custom_statuses": result.get("custom_statuses", default_statuses),
         }
 
 
@@ -692,10 +702,15 @@ def save_settings(payload: SettingsPayload):
                 "INSERT INTO settings (key, value, updated_at) VALUES ('allowed_manage_roles', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')",
                 (json.dumps(payload.allowed_manage_roles),),
             )
+        if payload.custom_statuses is not None:
+            cursor.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES ('custom_statuses', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')",
+                (json.dumps(payload.custom_statuses),),
+            )
         conn.commit()
     return {
         "status": "success",
-        "message": "Đã lưu cấu hình phân quyền vai trò tập trung vào SQLite DB",
+        "message": "Đã lưu cấu hình phân quyền và trạng thái tập trung vào SQLite DB",
     }
 
 
