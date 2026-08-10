@@ -872,7 +872,6 @@ def get_verification_code(req: AccountCodeRequest):
                     account.con.session = account.con.get_session(load_token=False)
                 account.con.session.headers['Authorization'] = f'Bearer {access_token}'
             else:
-                save_account_to_db(account_str=account_str, status="Hết hạn Token", user=req.user)
                 detail_msg = f"Token Outlook của tài khoản '{username}' đã bị hết hạn và không thể tự động gia hạn (Renew). Vui lòng cập nhật dòng token mới."
                 raise HTTPException(
                     status_code=400,
