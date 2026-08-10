@@ -11,7 +11,7 @@ from typing import Optional, List, Union
 from unittest.mock import MagicMock
 
 try:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Query
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import FileResponse
@@ -638,6 +638,73 @@ def get_account_logs(email: str):
         return {"status": "success", "email": clean_email, "logs": logs}
 
 
+def auto_renew_outlook_token(account_str: str, user: Optional[str] = None) -> Optional[str]:
+    """
+    Tự động gọi API Renew Outlook Token (https://api-tools.shopmailmmo.com/api/v1/public/outlook/renew)
+    khi refresh token bị hết hạn. Trả về account_str mới nếu thành công, hoặc None nếu thất bại.
+    """
+    if not account_str or '|' not in account_str:
+        return None
+
+    renew_url = "https://api-tools.shopmailmmo.com/api/v1/public/outlook/renew"
+    try:
+        res = requests.post(renew_url, json={"data": account_str}, timeout=15)
+        if res.status_code == 200:
+            res_json = res.json()
+            if res_json.get("success") and res_json.get("data"):
+                new_account_str = res_json["data"]
+                # Lưu account_str mới và chuyển trạng thái về "Chưa sử dụng"
+                save_account_to_db(account_str=new_account_str, status="Chưa sử dụng", user=user)
+                acc_info = parse_account_string(new_account_str)
+                email = acc_info.get("username")
+                if email:
+                    add_account_log(
+                        email,
+                        action="AUTO_RENEW_TOKEN",
+                        details="Tự động Gia Hạn (Renew) Token thành công qua api-tools.shopmailmmo.com",
+                        user=user or "System",
+                    )
+                return new_account_str
+            else:
+                print(f"[AUTO_RENEW] API shopmailmmo báo lỗi: {res_json}")
+    except Exception as e:
+        print(f"[AUTO_RENEW_EXCEPTION] Lỗi khi kết nối tới api-tools.shopmailmmo.com: {e}")
+    return None
+
+
+class RenewTokenRequest(BaseModel):
+    email: str = Field(..., description="Địa chỉ email hoặc account string")
+    user: Optional[str] = Field(default=None, description="Tên người thực hiện")
+
+
+@app.post("/api/accounts/renew-token")
+def manual_renew_token_endpoint(req: RenewTokenRequest):
+    """API gia hạn (renew) Token thủ công cho 1 tài khoản email qua shopmailmmo"""
+    raw_input = req.email.strip()
+    account_str = raw_input
+    if '|' not in raw_input:
+        db_acc = get_account_from_db(raw_input)
+        if db_acc:
+            account_str = db_acc
+        else:
+            raise HTTPException(
+                status_code=400, detail=f"Không tìm thấy token của email '{raw_input}' trong SQLite DB"
+            )
+
+    renewed_str = auto_renew_outlook_token(account_str, user=req.user)
+    if renewed_str:
+        return {
+            "status": "success",
+            "message": f"Đã gia hạn (Renew) Token thành công cho tài khoản '{req.email}'!",
+            "account_str": renewed_str,
+        }
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Không thể gia hạn (Renew) Token cho '{req.email}' qua api-tools.shopmailmmo.com. Vui lòng kiểm tra lại dòng token.",
+        )
+
+
 @app.delete("/api/accounts/delete/{email:path}")
 @app.delete("/api/accounts/{email:path}")
 def delete_account(email: str, user: Optional[str] = None):
@@ -656,22 +723,22 @@ def delete_account(email: str, user: Optional[str] = None):
 
 
 @app.get("/api/get-code-by-email")
-def get_code_by_email_get(email: str, keyword: Optional[str] = None, limit: int = 15, user: Optional[str] = None):
+def get_code_by_email_get(email: str = Query(..., description="Địa chỉ email tài khoản Outlook")):
     """
-    Endpoint mới (GET): Chỉ cần truyền query param ?email=your_email@outlook.com để nhận mã OTP.
+    Endpoint tra cứu mã OTP nhanh dạng GET.
     Ví dụ: GET /api/get-code-by-email?email=sylvesterrojas997795@outlook.com
     """
-    req = AccountCodeRequest(account_str=email, keyword=keyword, limit=limit, use_mock=False, user=user)
-    return get_verification_code(req)
+    code_req = AccountCodeRequest(account_str=email)
+    return get_verification_code(code_req)
 
 
 @app.post("/api/get-code-by-email")
 def get_code_by_email_post(req: EmailOnlyRequest):
     """
-    Endpoint mới (POST): Chỉ cần truyền body JSON {"email": "your_email@outlook.com"} để nhận mã OTP.
+    Endpoint tra cứu mã OTP nhanh dạng POST.
     Ví dụ: POST /api/get-code-by-email với body {"email": "sylvesterrojas997795@outlook.com"}
     """
-    code_req = AccountCodeRequest(account_str=req.email, keyword=req.keyword, limit=req.limit or 15, use_mock=False, user=req.user)
+    code_req = AccountCodeRequest(account_str=req.email, keyword=req.keyword)
     return get_verification_code(code_req)
 
 
@@ -750,8 +817,27 @@ def get_verification_code(req: AccountCodeRequest):
                 'scope': 'https://graph.microsoft.com/Mail.Read'
             }
             res = requests.post(token_url, data=data)
+            access_token = None
+
             if res.status_code == 200 and 'access_token' in res.json():
                 access_token = res.json()['access_token']
+            else:
+                # Tự động gia hạn (Renew) token 1 lần qua API shopmailmmo khi bị hết hạn
+                renewed_str = auto_renew_outlook_token(account_str, user=req.user)
+                if renewed_str:
+                    renewed_info = parse_account_string(renewed_str)
+                    new_refresh = renewed_info.get('refresh_token')
+                    new_client_id = renewed_info.get('client_id') or client_id
+                    if new_refresh:
+                        data['refresh_token'] = new_refresh
+                        data['client_id'] = new_client_id
+                        res_retry = requests.post(token_url, data=data)
+                        if res_retry.status_code == 200 and 'access_token' in res_retry.json():
+                            access_token = res_retry.json()['access_token']
+                            account_str = renewed_str
+                            acc_info = renewed_info
+
+            if access_token:
                 account.con.token_backend._cache = {'access_token': {'secret': access_token}}
                 account.con.token_backend.token_is_expired = lambda username=None: False
                 account.con.token_backend.token_is_long_lived = lambda username=None: True
@@ -759,30 +845,16 @@ def get_verification_code(req: AccountCodeRequest):
                     account.con.session = account.con.get_session(load_token=False)
                 account.con.session.headers['Authorization'] = f'Bearer {access_token}'
             else:
-                err_data = res.json() if res.headers.get('content-type', '').startswith('application/json') else {}
-                err_msg = err_data.get('error_description', res.text)
-                if 'AADSTS70000' in err_msg or 'invalid_grant' in err_data.get('error', ''):
-                    # Tự động chuyển trạng thái của tài khoản sang "Hết hạn Token"
-                    save_account_to_db(account_str=account_str, status="Hết hạn Token", user=req.user)
-                    detail_msg = f"Token Outlook của tài khoản '{username}' đã bị hết hạn hoặc bị thay đổi mật khẩu từ phía Microsoft (Mã lỗi: AADSTS70000). Vui lòng cập nhật dòng token mới."
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error_code": "REFRESH_TOKEN_EXPIRED",
-                            "message": detail_msg,
-                            "email": username
-                        }
-                    )
-                else:
-                    detail_msg = f"Không thể lấy access_token từ refresh_token: {err_msg}"
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error_code": "O365_OAUTH_FAILED",
-                            "message": detail_msg,
-                            "email": username
-                        }
-                    )
+                save_account_to_db(account_str=account_str, status="Hết hạn Token", user=req.user)
+                detail_msg = f"Token Outlook của tài khoản '{username}' đã bị hết hạn và không thể tự động gia hạn (Renew). Vui lòng cập nhật dòng token mới."
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error_code": "REFRESH_TOKEN_EXPIRED",
+                        "message": detail_msg,
+                        "email": username,
+                    },
+                )
 
 
     try:
