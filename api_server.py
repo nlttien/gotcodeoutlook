@@ -778,6 +778,7 @@ def get_verification_code(req: AccountCodeRequest):
             username,
             action="FETCH_OTP",
             details=f"Đã đọc hòm thư & lấy mã OTP: {primary_otp or 'Không tìm thấy mã'} | Tiêu đề: {target_msg.subject or 'N/A'}",
+            user=performed_by,
         )
 
 
