@@ -4,6 +4,7 @@ API Server & Web UI: Dịch vụ trích xuất mã xác nhận (OTP) và hiển 
 
 import re
 import sys
+import json
 import sqlite3
 from pathlib import Path
 from typing import Optional, List, Union
@@ -735,6 +736,23 @@ def save_settings(payload: SettingsPayload):
                 "INSERT INTO settings (key, value, updated_at) VALUES ('custom_statuses', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')",
                 (json.dumps(payload.custom_statuses),),
             )
+            # Tự động dọn dẹp các trạng thái bị xóa khỏi tất cả tài khoản trong bảng accounts DB
+            valid_names = set(
+                s.get("name", "").strip() for s in payload.custom_statuses if s.get("name")
+            )
+            cursor.execute(
+                "SELECT email, status FROM accounts WHERE status IS NOT NULL AND status != ''"
+            )
+            all_accs = cursor.fetchall()
+            for acc_email, acc_status in all_accs:
+                tags = [t.strip() for t in acc_status.split(",") if t.strip()]
+                cleaned_tags = [t for t in tags if t in valid_names]
+                new_status_str = ", ".join(cleaned_tags) if cleaned_tags else "Hoạt động"
+                if new_status_str != acc_status:
+                    cursor.execute(
+                        "UPDATE accounts SET status = ?, updated_at = datetime('now') WHERE email = ?",
+                        (new_status_str, acc_email),
+                    )
         conn.commit()
     return {
         "status": "success",
