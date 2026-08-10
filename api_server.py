@@ -135,7 +135,7 @@ def save_account_to_db(
             VALUES (?, ?, COALESCE(?, 'Chưa sử dụng'), ?, ?, ?, datetime('now'))
             ON CONFLICT(email) DO UPDATE SET
                 account_str = excluded.account_str,
-                status = COALESCE(excluded.status, accounts.status, 'Chưa sử dụng'),
+                status = CASE WHEN excluded.status IS NOT NULL AND excluded.status != '' THEN excluded.status ELSE accounts.status END,
                 otp_code = COALESCE(excluded.otp_code, accounts.otp_code),
                 subject = COALESCE(excluded.subject, accounts.subject),
                 sender = COALESCE(excluded.sender, accounts.sender),
@@ -563,20 +563,27 @@ def sync_booster_links(req: BatchSyncBoosterLinksRequest):
 
     for item in req.items:
         raw_email = (item.email or "").strip()
-        if not raw_email or "@" not in raw_email:
+        if not raw_email:
             continue
-        email_clean = raw_email.split('|')[0].strip().lower()
+
+        found_emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', raw_email)
+        if not found_emails:
+            continue
+
         game_title = (item.game_title or "").lower()
 
         target_status = None
-        if "diablo" in game_title:
+        if "diablo" in game_title or "d4" in game_title or "d2" in game_title:
             target_status = "Đã mua Diablo"
         elif "poe" in game_title or "path of exile" in game_title:
             target_status = "Đã mua PoE"
 
         if target_status:
-            save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
-            updated_count += 1
+            for email_clean in found_emails:
+                email_clean = email_clean.lower().strip()
+                saved = save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
+                if saved:
+                    updated_count += 1
 
     return {
         "status": "success",
