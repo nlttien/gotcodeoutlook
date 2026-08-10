@@ -545,6 +545,13 @@ def reset_all_accounts_status(req: ResetAllStatusRequest):
             user=performed_by,
         )
 
+    return {
+        "status": "success",
+        "message": f"Đã chuyển trạng thái của toàn bộ {updated_count} tài khoản về '{new_status}'",
+        "updated_count": updated_count,
+    }
+
+
 class BoosterLinkItem(BaseModel):
     email: str = Field(..., description="Địa chỉ email hoặc account string")
     game_title: Optional[str] = Field(None, description="Tên game (VD: Diablo IV, PoE...)")
@@ -557,7 +564,7 @@ class BatchSyncBoosterLinksRequest(BaseModel):
 
 @app.post("/api/accounts/sync-booster-links")
 def sync_booster_links(req: BatchSyncBoosterLinksRequest):
-    """Đồng bộ tự động trạng thái email từ danh sách Booster Accounts (Diablo -> Đã mua Diablo, PoE -> Đã mua PoE)"""
+    """Đồng bộ tự động trạng thái email từ danh sách Booster Accounts (Diablo -> đã mua game diablo, PoE 1 -> đã mua rương poe1 cho trader, PoE 2 -> đã mua rương poe2 cho trader)"""
     updated_count = 0
     performed_by = req.user.strip() if req.user and req.user.strip() else "System"
 
@@ -573,10 +580,12 @@ def sync_booster_links(req: BatchSyncBoosterLinksRequest):
         game_title = (item.game_title or "").lower()
 
         target_status = None
-        if "diablo" in game_title or "d4" in game_title or "d2" in game_title:
-            target_status = "Đã mua Diablo"
+        if "poe 2" in game_title or "poe2" in game_title or "path of exile 2" in game_title:
+            target_status = "đã mua rương poe2 cho trader"
         elif "poe" in game_title or "path of exile" in game_title:
-            target_status = "Đã mua PoE"
+            target_status = "đã mua rương poe1 cho trader"
+        elif "diablo" in game_title or "d4" in game_title or "d2" in game_title:
+            target_status = "đã mua game diablo"
 
         if target_status:
             for email_clean in found_emails:
