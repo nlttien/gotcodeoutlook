@@ -52,6 +52,14 @@ def init_sqlite_db():
             cursor.execute("ALTER TABLE accounts ADD COLUMN subject TEXT")
         if "sender" not in columns:
             cursor.execute("ALTER TABLE accounts ADD COLUMN sender TEXT")
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
 
 
@@ -636,6 +644,59 @@ def get_verification_code(req: AccountCodeRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi đọc hòm thư Outlook: {str(e)}")
+
+
+class SettingsPayload(BaseModel):
+    allowed_view_roles: Optional[List[str]] = None
+    allowed_manage_roles: Optional[List[str]] = None
+
+
+@app.get("/api/settings")
+def get_settings():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM settings")
+        rows = cursor.fetchall()
+        result = {}
+        for k, v in rows:
+            try:
+                result[k] = json.loads(v)
+            except Exception:
+                result[k] = v
+
+        default_roles = [
+            "System Manager",
+            "Administrator",
+            "Account Manager",
+            "Game Currency Admin",
+            "Ops Manager",
+        ]
+        return {
+            "status": "success",
+            "allowed_view_roles": result.get("allowed_view_roles", default_roles),
+            "allowed_manage_roles": result.get("allowed_manage_roles", default_roles),
+        }
+
+
+@app.post("/api/settings")
+def save_settings(payload: SettingsPayload):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        if payload.allowed_view_roles is not None:
+            cursor.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES ('allowed_view_roles', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')",
+                (json.dumps(payload.allowed_view_roles),),
+            )
+        if payload.allowed_manage_roles is not None:
+            cursor.execute(
+                "INSERT INTO settings (key, value, updated_at) VALUES ('allowed_manage_roles', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')",
+                (json.dumps(payload.allowed_manage_roles),),
+            )
+        conn.commit()
+    return {
+        "status": "success",
+        "message": "Đã lưu cấu hình phân quyền vai trò tập trung vào SQLite DB",
+    }
 
 
 if __name__ == '__main__':
