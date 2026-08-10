@@ -588,10 +588,10 @@ def sync_booster_links(req: BatchSyncBoosterLinksRequest):
             target_status = None
             if "poe 2" in game_title or "poe2" in game_title or "path of exile 2" in game_title:
                 target_status = "đã mua rương poe2 cho trader"
-            elif "diablo" in game_title or "d4" in game_title or "d2" in game_title:
-                target_status = "đã mua game diablo"
             elif "poe" in game_title or "poe1" in game_title or "path of exile" in game_title:
                 target_status = "đã mua rương poe1 cho trader"
+            elif "diablo" in game_title or "d4" in game_title:
+                target_status = "đã mua game diablo"
 
             if target_status:
                 for email_clean in found_emails:
