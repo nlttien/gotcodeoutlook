@@ -602,8 +602,8 @@ def sync_booster_links(req: BatchSyncBoosterLinksRequest):
                     existing = cursor.fetchone()
                     if existing and existing[0]:
                         curr_st = existing[0].lower()
-                        # 1. Không ghi đè Hết hạn Token / Ban / Khóa
-                        if "hết hạn" in curr_st or "ban" in curr_st or "khóa" in curr_st:
+                        # 1. Không ghi đè nếu tài khoản đã bị Ban / Khóa
+                        if "ban" in curr_st or "khóa" in curr_st:
                             continue
                         # 2. Ưu tiên PoE 2: Nếu DB đang là PoE 2 thì không hạ xuống PoE 1 hay Diablo
                         if "poe2" in curr_st or "poe 2" in curr_st or "rương poe2" in curr_st:
