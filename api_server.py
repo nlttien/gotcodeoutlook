@@ -108,10 +108,6 @@ def get_account_from_db(query_key: str) -> Optional[str]:
         row = cursor.fetchone()
         if row:
             return row[0]
-    return Nonelean_key, f"%{clean_key}%"))
-        row = cursor.fetchone()
-        if row:
-            return row[0]
     return None
 
 
@@ -644,7 +640,7 @@ def get_verification_code(req: AccountCodeRequest):
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8005))
     print(f"Đang khởi chạy API Server & Web UI Dashboard tại http://0.0.0.0:{port}...")
     uvicorn.run("api_server:app", host="0.0.0.0", port=port, reload=False)
 
