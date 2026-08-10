@@ -6,7 +6,7 @@ import re
 import sys
 import sqlite3
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Union
 from unittest.mock import MagicMock
 
 try:
@@ -34,6 +34,7 @@ def init_sqlite_db():
             CREATE TABLE IF NOT EXISTS accounts (
                 email TEXT PRIMARY KEY,
                 account_str TEXT NOT NULL,
+                status TEXT DEFAULT 'Hoạt động',
                 otp_code TEXT,
                 subject TEXT,
                 sender TEXT,
@@ -43,6 +44,8 @@ def init_sqlite_db():
         # Đảm bảo bổ sung các cột nếu bảng cũ chưa có
         cursor.execute("PRAGMA table_info(accounts)")
         columns = [col[1] for col in cursor.fetchall()]
+        if "status" not in columns:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN status TEXT DEFAULT 'Hoạt động'")
         if "otp_code" not in columns:
             cursor.execute("ALTER TABLE accounts ADD COLUMN otp_code TEXT")
         if "subject" not in columns:
@@ -52,16 +55,25 @@ def init_sqlite_db():
         conn.commit()
 
 
-def save_account_to_db(account_str: str, otp_code: Optional[str] = None, subject: Optional[str] = None, sender: Optional[str] = None) -> Optional[str]:
-    """Lưu / Cập nhật thông tin tài khoản và mã OTP mới nhất vào duy nhất 1 bảng accounts trong SQLite DB"""
+def save_account_to_db(account_str: str, status: Optional[str] = None, otp_code: Optional[str] = None, subject: Optional[str] = None, sender: Optional[str] = None) -> Optional[str]:
+    """Lưu / Cập nhật thông tin tài khoản, danh sách trạng thái và mã OTP mới nhất vào duy nhất 1 bảng accounts trong SQLite DB"""
     acc = parse_account_string(account_str)
     email = acc['username'].strip().lower()
     if not email or '@' not in email:
         return None
+    
+    # Xử lý chuỗi status (nếu dạng list hoặc tuple thì join)
+    if isinstance(status, (list, tuple)):
+        status_str = ", ".join([str(s).strip() for s in status if str(s).strip()])
+    elif status:
+        status_str = str(status).strip()
+    else:
+        status_str = None
+
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         
-        # Nếu chuỗi mới truyền vào không chứa dấy |, kiểm tra xem SQLite DB đã có chuỗi token đầy đủ chưa
+        # Nếu chuỗi mới truyền vào không chứa dấu |, kiểm tra xem SQLite DB đã có chuỗi token đầy đủ chưa
         if '|' not in account_str:
             cursor.execute("SELECT account_str FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
             existing = cursor.fetchone()
@@ -69,19 +81,18 @@ def save_account_to_db(account_str: str, otp_code: Optional[str] = None, subject
                 account_str = existing[0]
 
         cursor.execute("""
-            INSERT INTO accounts (email, account_str, otp_code, subject, sender, updated_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'))
+            INSERT INTO accounts (email, account_str, status, otp_code, subject, sender, updated_at)
+            VALUES (?, ?, COALESCE(?, 'Hoạt động'), ?, ?, ?, datetime('now'))
             ON CONFLICT(email) DO UPDATE SET
                 account_str = excluded.account_str,
+                status = COALESCE(excluded.status, accounts.status, 'Hoạt động'),
                 otp_code = COALESCE(excluded.otp_code, accounts.otp_code),
                 subject = COALESCE(excluded.subject, accounts.subject),
                 sender = COALESCE(excluded.sender, accounts.sender),
                 updated_at = datetime('now')
-        """, (email, account_str, otp_code, subject, sender))
+        """, (email, account_str, status_str, otp_code, subject, sender))
         conn.commit()
     return email
-
-
 
 
 def get_account_from_db(query_key: str) -> Optional[str]:
@@ -94,6 +105,10 @@ def get_account_from_db(query_key: str) -> Optional[str]:
             WHERE LOWER(email) = LOWER(?) OR LOWER(account_str) LIKE LOWER(?)
             ORDER BY updated_at DESC LIMIT 1
         """, (clean_key, f"%{clean_key}%"))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+    return Nonelean_key, f"%{clean_key}%"))
         row = cursor.fetchone()
         if row:
             return row[0]
@@ -235,33 +250,81 @@ def read_admin():
     return {"message": "Admin Web UI chưa khởi tạo. Vui lòng tạo static/admin.html"}
 
 
-@app.get("/api/accounts")
-def list_saved_accounts():
-    """Lấy danh sách tất cả tài khoản và kết quả lấy OTP từ duy nhất 1 bảng accounts trong SQLite DB"""
+@app.get("/api/status")
+def get_server_status():
+    """Endpoint kiểm tra trạng thái hoạt động của Python O365 API Server per User Rule #5"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT email, account_str, otp_code, subject, sender, updated_at FROM accounts ORDER BY updated_at DESC")
+        cursor.execute("SELECT COUNT(*) FROM accounts")
+        total_accounts = cursor.fetchone()[0]
+    return {
+        "status": "success",
+        "service": "Python O365 API Server",
+        "total_saved_accounts": total_accounts,
+        "db_path": str(DB_PATH)
+    }
+
+
+@app.get("/api/accounts")
+def list_saved_accounts(search: Optional[str] = None, status: Optional[str] = None):
+    """Lấy danh sách tất cả tài khoản, lọc tìm kiếm đa trường và danh sách trạng thái từ duy nhất 1 bảng accounts trong SQLite DB"""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT email, account_str, status, otp_code, subject, sender, updated_at FROM accounts ORDER BY updated_at DESC")
         rows = cursor.fetchall()
-        items = [
-            {
+        
+        items = []
+        for r in rows:
+            acc_status = r[2] or "Hoạt động"
+            item = {
                 "email": r[0],
                 "account_str": r[1],
-                "otp_code": r[2],
-                "subject": r[3],
-                "sender": r[4],
-                "updated_at": r[5]
+                "status": acc_status,
+                "otp_code": r[3],
+                "subject": r[4],
+                "sender": r[5],
+                "updated_at": r[6]
             }
-            for r in rows
-        ]
-        return {"status": "success", "accounts": items}
+            
+            # Lọc tìm kiếm search (Case-insensitive multi-field search per User Rule #4)
+            if search:
+                s_lower = search.strip().lower()
+                matched = (
+                    s_lower in (r[0] or "").lower() or
+                    s_lower in (r[1] or "").lower() or
+                    s_lower in (acc_status or "").lower() or
+                    s_lower in (r[3] or "").lower() or
+                    s_lower in (r[4] or "").lower() or
+                    s_lower in (r[5] or "").lower()
+                )
+                if not matched:
+                    continue
+
+            # Lọc theo status (Hỗ trợ lọc chuỗi chứa từ khóa status per User Rule #3)
+            if status:
+                st_lower = status.strip().lower()
+                if st_lower not in acc_status.lower():
+                    continue
+
+            items.append(item)
+
+        return {"status": "success", "accounts": items, "count": len(items)}
 
 
 class AddAccountRequest(BaseModel):
     account_str: str = Field(..., description="Dòng thông tin tài khoản dạng email|password|refresh_token|client_id")
+    status: Optional[Union[str, List[str]]] = Field(default=None, description="Trạng thái hoặc danh sách trạng thái của tài khoản")
+
+
+class UpdateAccountRequest(BaseModel):
+    email: str = Field(..., description="Địa chỉ email tài khoản cần cập nhật")
+    account_str: Optional[str] = Field(None, description="Dòng thông tin tài khoản mới")
+    status: Optional[Union[str, List[str]]] = Field(None, description="Danh sách trạng thái hoặc chuỗi trạng thái mới")
 
 
 class BatchAddAccountsRequest(BaseModel):
     accounts: List[str] = Field(..., description="Danh sách chuỗi tài khoản dạng mảng hoặc văn bản nhiều dòng")
+    status: Optional[Union[str, List[str]]] = Field(default=None, description="Trạng thái áp dụng chung cho batch")
 
 
 @app.post("/api/accounts/add")
@@ -273,17 +336,39 @@ def add_new_account(req: AddAccountRequest):
 
     lines = [l.strip() for l in raw_str.splitlines() if l.strip()]
     if len(lines) == 1:
-        email = save_account_to_db(lines[0])
+        email = save_account_to_db(account_str=lines[0], status=req.status)
         if not email:
             raise HTTPException(status_code=400, detail="Chuỗi account_str không chứa địa chỉ email hợp lệ.")
         return {"status": "success", "message": f"Đã lưu tài khoản {email} vào SQLite Database", "email": email}
     else:
-        return batch_add_accounts(BatchAddAccountsRequest(accounts=lines))
+        return batch_add_accounts(BatchAddAccountsRequest(accounts=lines, status=req.status))
+
+
+@app.put("/api/accounts/update")
+@app.put("/api/accounts/{email:path}")
+def update_account(req: UpdateAccountRequest, email: Optional[str] = None):
+    """Cập nhật thông tin chuỗi script key và danh sách trạng thái của email trong SQLite DB"""
+    target_email = email or req.email
+    if not target_email or '@' not in target_email:
+        raise HTTPException(status_code=400, detail="Vui lòng cung cấp địa chỉ email hợp lệ.")
+
+    # Tìm account_str cũ nếu người dùng không truyền account_str mới
+    existing_acc_str = get_account_from_db(target_email)
+    account_str_to_save = req.account_str or existing_acc_str or target_email
+
+    saved_email = save_account_to_db(account_str=account_str_to_save, status=req.status)
+    if not saved_email:
+        raise HTTPException(status_code=400, detail=f"Không thể cập nhật tài khoản {target_email}.")
+
+    return {
+        "status": "success",
+        "message": f"Đã cập nhật thành công tài khoản {saved_email}",
+        "email": saved_email
+    }
 
 
 @app.post("/api/accounts/batch")
 def batch_add_accounts(req: BatchAddAccountsRequest):
-
     """Import hàng loạt chuỗi tài khoản Outlook vào SQLite Database"""
     added_count = 0
     failed_count = 0
@@ -299,7 +384,7 @@ def batch_add_accounts(req: BatchAddAccountsRequest):
 
     for line in raw_lines:
         try:
-            email = save_account_to_db(line)
+            email = save_account_to_db(account_str=line, status=req.status)
             if email:
                 added_count += 1
                 processed_emails.append(email)
@@ -444,10 +529,27 @@ def get_verification_code(req: AccountCodeRequest):
                 err_data = res.json() if res.headers.get('content-type', '').startswith('application/json') else {}
                 err_msg = err_data.get('error_description', res.text)
                 if 'AADSTS70000' in err_msg or 'invalid_grant' in err_data.get('error', ''):
+                    # Tự động chuyển trạng thái của tài khoản sang "Hết hạn Token"
+                    save_account_to_db(account_str=account_str, status="Hết hạn Token")
                     detail_msg = f"Token Outlook của tài khoản '{username}' đã bị hết hạn hoặc bị thay đổi mật khẩu từ phía Microsoft (Mã lỗi: AADSTS70000). Vui lòng cập nhật dòng token mới."
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error_code": "REFRESH_TOKEN_EXPIRED",
+                            "message": detail_msg,
+                            "email": username
+                        }
+                    )
                 else:
                     detail_msg = f"Không thể lấy access_token từ refresh_token: {err_msg}"
-                raise HTTPException(status_code=400, detail=detail_msg)
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error_code": "O365_OAUTH_FAILED",
+                            "message": detail_msg,
+                            "email": username
+                        }
+                    )
 
 
     try:
