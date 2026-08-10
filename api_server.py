@@ -132,10 +132,10 @@ def save_account_to_db(
 
         cursor.execute("""
             INSERT INTO accounts (email, account_str, status, otp_code, subject, sender, updated_at)
-            VALUES (?, ?, COALESCE(?, 'Hoạt động'), ?, ?, ?, datetime('now'))
+            VALUES (?, ?, COALESCE(?, 'Chưa sử dụng'), ?, ?, ?, datetime('now'))
             ON CONFLICT(email) DO UPDATE SET
                 account_str = excluded.account_str,
-                status = COALESCE(excluded.status, accounts.status, 'Hoạt động'),
+                status = COALESCE(excluded.status, accounts.status, 'Chưa sử dụng'),
                 otp_code = COALESCE(excluded.otp_code, accounts.otp_code),
                 subject = COALESCE(excluded.subject, accounts.subject),
                 sender = COALESCE(excluded.sender, accounts.sender),
@@ -148,7 +148,7 @@ def save_account_to_db(
         add_account_log(
             email,
             action="IMPORT",
-            details=f"Khởi tạo/Import tài khoản. Trạng thái: {status_str or 'Hoạt động'}",
+            details=f"Khởi tạo/Import tài khoản. Trạng thái: {status_str or 'Chưa sử dụng'}",
             user=performed_by,
         )
     elif status_str is not None:
@@ -514,6 +514,41 @@ def batch_add_accounts(req: BatchAddAccountsRequest):
         "added_count": added_count,
         "failed_count": failed_count,
         "emails": processed_emails
+    }
+
+
+class ResetAllStatusRequest(BaseModel):
+    status: str = Field(default="Chưa sử dụng", description="Trạng thái áp dụng cho toàn bộ tài khoản")
+    user: Optional[str] = Field(default=None, description="Tên người thực hiện")
+
+
+@app.post("/api/accounts/reset-all-status")
+def reset_all_accounts_status(req: ResetAllStatusRequest):
+    """Cập nhật trạng thái cho TOÀN BỘ tài khoản trong SQLite DB về trạng thái chỉ định (mặc định: Chưa sử dụng)"""
+    new_status = req.status.strip() if req.status and req.status.strip() else "Chưa sử dụng"
+    performed_by = req.user.strip() if req.user and req.user.strip() else "System"
+
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT email FROM accounts")
+        all_emails = [r[0] for r in cursor.fetchall()]
+
+        cursor.execute("UPDATE accounts SET status = ?, updated_at = datetime('now')", (new_status,))
+        updated_count = cursor.rowcount
+        conn.commit()
+
+    for email in all_emails:
+        add_account_log(
+            email,
+            action="UPDATE_STATUS",
+            details=f"Chuyển trạng thái hàng loạt thành: {new_status}",
+            user=performed_by,
+        )
+
+    return {
+        "status": "success",
+        "message": f"Đã chuyển trạng thái của toàn bộ {updated_count} tài khoản về '{new_status}'",
+        "updated_count": updated_count,
     }
 
 
