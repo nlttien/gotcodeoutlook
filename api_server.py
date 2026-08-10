@@ -6,6 +6,7 @@ import re
 import sys
 import json
 import sqlite3
+import requests
 from pathlib import Path
 from typing import Optional, List, Union
 from unittest.mock import MagicMock
@@ -582,17 +583,16 @@ def sync_booster_links(req: BatchSyncBoosterLinksRequest):
         target_status = None
         if "poe 2" in game_title or "poe2" in game_title or "path of exile 2" in game_title:
             target_status = "đã mua rương poe2 cho trader"
-        elif "poe" in game_title or "path of exile" in game_title:
-            target_status = "đã mua rương poe1 cho trader"
         elif "diablo" in game_title or "d4" in game_title or "d2" in game_title:
             target_status = "đã mua game diablo"
+        elif "poe" in game_title or "poe1" in game_title or "path of exile" in game_title:
+            target_status = "đã mua rương poe1 cho trader"
 
         if target_status:
             for email_clean in found_emails:
                 email_clean = email_clean.lower().strip()
-                saved = save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
-                if saved:
-                    updated_count += 1
+                save_account_to_db(account_str=email_clean, status=target_status, user=performed_by)
+                updated_count += 1
 
     return {
         "status": "success",
