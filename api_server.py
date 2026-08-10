@@ -348,27 +348,58 @@ def add_new_account(req: AddAccountRequest):
         return batch_add_accounts(BatchAddAccountsRequest(accounts=lines, status=req.status))
 
 
-@app.put("/api/accounts/update")
-@app.put("/api/accounts/{email:path}")
-def update_account(req: UpdateAccountRequest, email: Optional[str] = None):
-    """Cập nhật thông tin chuỗi script key và danh sách trạng thái của email trong SQLite DB"""
-    target_email = email or req.email
-    if not target_email or '@' not in target_email:
+def process_update_account(
+    target_email: Optional[str],
+    account_str: Optional[str],
+    status: Optional[Union[str, List[str]]],
+):
+    email_clean = (target_email or "").strip()
+    if not email_clean or "@" not in email_clean:
+        if account_str:
+            acc_info = parse_account_string(account_str)
+            email_clean = acc_info.get("username", "").strip()
+
+    if not email_clean or "@" not in email_clean:
         raise HTTPException(status_code=400, detail="Vui lòng cung cấp địa chỉ email hợp lệ.")
 
-    # Tìm account_str cũ nếu người dùng không truyền account_str mới
-    existing_acc_str = get_account_from_db(target_email)
-    account_str_to_save = req.account_str or existing_acc_str or target_email
+    existing_acc_str = get_account_from_db(email_clean)
+    clean_req_str = (account_str or "").strip()
 
-    saved_email = save_account_to_db(account_str=account_str_to_save, status=req.status)
+    if clean_req_str and "@" in clean_req_str:
+        account_str_to_save = clean_req_str
+    else:
+        account_str_to_save = existing_acc_str or email_clean
+
+    saved_email = save_account_to_db(account_str=account_str_to_save, status=status)
     if not saved_email:
-        raise HTTPException(status_code=400, detail=f"Không thể cập nhật tài khoản {target_email}.")
+        raise HTTPException(
+            status_code=400, detail=f"Không thể cập nhật tài khoản {email_clean}."
+        )
 
     return {
         "status": "success",
         "message": f"Đã cập nhật thành công tài khoản {saved_email}",
-        "email": saved_email
+        "email": saved_email,
     }
+
+
+@app.put("/api/accounts/update")
+def update_account_body(req: UpdateAccountRequest):
+    """Cập nhật thông tin tài khoản via Body JSON"""
+    return process_update_account(
+        target_email=req.email, account_str=req.account_str, status=req.status
+    )
+
+
+@app.put("/api/accounts/{email:path}")
+def update_account_path(email: str, req: UpdateAccountRequest):
+    """Cập nhật thông tin tài khoản via Path Email"""
+    clean_email = email if email and email != "update" else None
+    return process_update_account(
+        target_email=clean_email or req.email,
+        account_str=req.account_str,
+        status=req.status,
+    )
 
 
 @app.post("/api/accounts/batch")
@@ -668,9 +699,6 @@ def get_settings():
         default_roles = [
             "System Manager",
             "Administrator",
-            "Account Manager",
-            "Game Currency Admin",
-            "Ops Manager",
         ]
         default_statuses = [
             {"name": "Hoạt động", "icon": "✅", "color": "emerald"},
