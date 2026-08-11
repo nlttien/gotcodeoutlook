@@ -120,9 +120,11 @@ def save_account_to_db(
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
 
-        # Kiểm tra xem email đã tồn tại chưa để ghi log đúng action
-        cursor.execute("SELECT email FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
-        is_existing = cursor.fetchone() is not None
+        # Kiểm tra xem email đã tồn tại chưa để lấy trạng thái cũ
+        cursor.execute("SELECT status FROM accounts WHERE LOWER(email) = LOWER(?)", (email,))
+        old_status_row = cursor.fetchone()
+        is_existing = old_status_row is not None
+        old_status = old_status_row[0] if old_status_row else None
 
         # Nếu chuỗi mới truyền vào không chứa dấu |, kiểm tra xem SQLite DB đã có chuỗi token đầy đủ chưa
         if '|' not in account_str:
@@ -158,7 +160,7 @@ def save_account_to_db(
             details=f"Khởi tạo/Import tài khoản. Trạng thái: {status_str or 'Chưa sử dụng'}",
             user=performed_by,
         )
-    elif status_str is not None:
+    elif status_str is not None and status_str != old_status:
         add_account_log(
             email,
             action="UPDATE_STATUS",
