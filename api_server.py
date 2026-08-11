@@ -768,7 +768,12 @@ def get_code_by_email_post(req: EmailOnlyRequest):
     Endpoint tra cứu mã OTP nhanh dạng POST.
     Ví dụ: POST /api/get-code-by-email với body {"email": "sylvesterrojas997795@outlook.com"}
     """
-    code_req = AccountCodeRequest(account_str=req.email, keyword=req.keyword)
+    code_req = AccountCodeRequest(
+        account_str=req.email,
+        keyword=req.keyword,
+        limit=req.limit or 15,
+        user=req.user,
+    )
     return get_verification_code(code_req)
 
 
@@ -879,6 +884,13 @@ def get_verification_code(req: AccountCodeRequest):
                 account.con.session.headers['Authorization'] = f'Bearer {access_token}'
             else:
                 detail_msg = f"Token Outlook của tài khoản '{username}' đã bị hết hạn và không thể tự động gia hạn (Renew). Vui lòng cập nhật dòng token mới."
+                performed_by = req.user.strip() if req.user and req.user.strip() else "System"
+                add_account_log(
+                    username,
+                    action="FETCH_OTP_FAILED",
+                    details=detail_msg,
+                    user=performed_by,
+                )
                 raise HTTPException(
                     status_code=400,
                     detail={
@@ -984,6 +996,13 @@ def get_verification_code(req: AccountCodeRequest):
 
 
     except Exception as e:
+        performed_by = req.user.strip() if req.user and req.user.strip() else "System"
+        add_account_log(
+            username,
+            action="FETCH_OTP_FAILED",
+            details=f"Lỗi khi đọc hòm thư Outlook: {str(e)}",
+            user=performed_by,
+        )
         raise HTTPException(status_code=500, detail=f"Lỗi khi đọc hòm thư Outlook: {str(e)}")
 
 
