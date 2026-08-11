@@ -903,20 +903,29 @@ def get_verification_code(req: AccountCodeRequest):
 
     try:
         mailbox = account.mailbox()
-        inbox = mailbox.inbox_folder()
-
-        q = mailbox.q()
-        query = None
+        folders_to_check = []
         try:
-            messages = list(inbox.get_messages(limit=req.limit, query=query, order_by='receivedDateTime desc'))
+            folders_to_check.append(mailbox.inbox_folder())
         except Exception:
-            messages = list(inbox.get_messages(limit=req.limit, query=query))
+            pass
+        try:
+            junk_f = mailbox.junk_folder()
+            if junk_f:
+                folders_to_check.append(junk_f)
+        except Exception:
+            pass
 
-        if not messages and req.keyword:
+        messages = []
+        for folder in folders_to_check:
             try:
-                messages = list(inbox.get_messages(limit=req.limit, order_by='receivedDateTime desc'))
+                folder_msgs = list(folder.get_messages(limit=req.limit, order_by='receivedDateTime desc'))
+                messages.extend(folder_msgs)
             except Exception:
-                messages = list(inbox.get_messages(limit=req.limit))
+                try:
+                    folder_msgs = list(folder.get_messages(limit=req.limit))
+                    messages.extend(folder_msgs)
+                except Exception:
+                    pass
 
         if not messages:
             return OTPCodeResponse(
