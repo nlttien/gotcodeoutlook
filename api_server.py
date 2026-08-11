@@ -266,19 +266,37 @@ def parse_account_string(account_str: str) -> dict:
 
 
 def extract_otp_code(text: str) -> List[str]:
-    """Trích xuất danh sách mã xác nhận (4-8 chữ số hoặc mã dạng gạch ngang ngắn) từ văn bản"""
+    """Trích xuất danh sách mã xác nhận OTP thực sự từ văn bản (loại bỏ thẻ HTML/CSS)"""
     if not text:
         return []
-    
-    # 1. Ưu tiên hàng đầu cho các mã số OTP chuẩn (4-8 chữ số), loại bỏ các năm 2024-2027
-    cleaned_text = re.sub(r'\b20[23]\d\b', '', text)
-    digit_codes = re.findall(r'\b\d{4,8}\b', cleaned_text)
 
-    # 2. Tìm các mã dạng gạch ngang ngắn (VD: ABC-123, 2F4-07E) - loại bỏ UUIDs và Client IDs dài
-    hyphen_matches = re.findall(r'\b[a-zA-Z0-9]{2,6}(?:-[a-zA-Z0-9]{2,6})+\b', text)
-    hyphen_codes = [c for c in hyphen_matches if len(c) <= 16 and not c.startswith('9e5f')]
+    # 1. Loại bỏ các khối <style>...</style> và <script>...</script>
+    clean = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
+    clean = re.sub(r'<script[^>]*>.*?</script>', ' ', clean, flags=re.DOTALL | re.IGNORECASE)
 
-    # Mã số đơn thuần được sắp trước, sau đó tới mã gạch ngang
+    # 2. Loại bỏ các thuộc tính HTML/CSS (style="...", href="...", http-equiv="...")
+    clean = re.sub(r'(?:style|href|http-equiv|class|id|src|color|font-family)\s*=\s*"[^"]*"', ' ', clean, flags=re.IGNORECASE)
+    clean = re.sub(r'(?:style|href|http-equiv|class|id|src|color|font-family)\s*=\s*\'[^\']*\'', ' ', clean, flags=re.IGNORECASE)
+
+    # 3. Strip toàn bộ HTML tags
+    clean = re.sub(r'<[^>]+>', ' ', clean)
+
+    # 4. Loại bỏ mã màu hex (vd #707070, #2672ec), năm (2020-2029), zip code Microsoft (98052), LinkIDs (281822, 521839)
+    clean = re.sub(r'#[0-9a-fA-F]{3,6}', ' ', clean)
+    clean = re.sub(r'\b20[23]\d\b', ' ', clean)
+    clean = re.sub(r'\b(98052|281822|521839)\b', ' ', clean)
+
+    # 5. Trích xuất mã OTP 4-8 chữ số
+    digit_codes = re.findall(r'\b\d{4,8}\b', clean)
+
+    # 6. Tìm các mã dạng gạch ngang ngắn (VD: ABC-123, 2F4-07E) - loại bỏ CSS properties
+    css_blacklist = {
+        'http-equiv', 'font-family', 'sans-serif', 'font-size', 'text-decoration',
+        'content-type', 'helvetica-neue', 'segoe-ui', 'padding-top', 'margin-top', 'margin-bottom'
+    }
+    hyphen_matches = re.findall(r'\b[a-zA-Z0-9]{2,6}(?:-[a-zA-Z0-9]{2,6})+\b', clean)
+    hyphen_codes = [c for c in hyphen_matches if len(c) <= 16 and c.lower() not in css_blacklist and not c.startswith('9e5f')]
+
     all_matches = digit_codes + hyphen_codes
 
     seen = set()
