@@ -248,6 +248,7 @@ class OTPCodeResponse(BaseModel):
     sender: Optional[str] = None
     received_time: Optional[str] = None
     message_preview: Optional[str] = None
+    full_body: Optional[str] = None
     all_codes_found: List[str] = []
     all_messages: List[EmailItem] = []
 
@@ -268,7 +269,7 @@ def parse_account_string(account_str: str) -> dict:
 
 
 def extract_otp_code(text: str) -> List[str]:
-    """Trích xuất danh sách mã xác nhận OTP thực sự từ văn bản (loại bỏ thẻ HTML/CSS)"""
+    """Trích xuất danh sách mã xác nhận OTP chuẩn 12 ký tự có 2 dấu - (VD: cfa-808-6def)"""
     if not text:
         return []
 
@@ -276,34 +277,20 @@ def extract_otp_code(text: str) -> List[str]:
     clean = re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=re.DOTALL | re.IGNORECASE)
     clean = re.sub(r'<script[^>]*>.*?</script>', ' ', clean, flags=re.DOTALL | re.IGNORECASE)
 
-    # 2. Loại bỏ các thuộc tính HTML/CSS (style="...", href="...", http-equiv="...")
+    # 2. Loại bỏ các thuộc tính HTML/CSS
     clean = re.sub(r'(?:style|href|http-equiv|class|id|src|color|font-family)\s*=\s*"[^"]*"', ' ', clean, flags=re.IGNORECASE)
     clean = re.sub(r'(?:style|href|http-equiv|class|id|src|color|font-family)\s*=\s*\'[^\']*\'', ' ', clean, flags=re.IGNORECASE)
 
     # 3. Strip toàn bộ HTML tags
     clean = re.sub(r'<[^>]+>', ' ', clean)
 
-    # 4. Loại bỏ mã màu hex (vd #707070, #2672ec), năm (2020-2029), zip code Microsoft (98052), LinkIDs (281822, 521839)
-    clean = re.sub(r'#[0-9a-fA-F]{3,6}', ' ', clean)
-    clean = re.sub(r'\b20[23]\d\b', ' ', clean)
-    clean = re.sub(r'\b(98052|281822|521839)\b', ' ', clean)
-
-    # 5. Trích xuất mã OTP 4-8 chữ số
-    digit_codes = re.findall(r'\b\d{4,8}\b', clean)
-
-    # 6. Tìm các mã dạng gạch ngang ngắn (VD: ABC-123, 2F4-07E) - loại bỏ CSS properties
-    css_blacklist = {
-        'http-equiv', 'font-family', 'sans-serif', 'font-size', 'text-decoration',
-        'content-type', 'helvetica-neue', 'segoe-ui', 'padding-top', 'margin-top', 'margin-bottom'
-    }
-    hyphen_matches = re.findall(r'\b[a-zA-Z0-9]{2,6}(?:-[a-zA-Z0-9]{2,6})+\b', clean)
-    hyphen_codes = [c for c in hyphen_matches if len(c) <= 16 and c.lower() not in css_blacklist and not c.startswith('9e5f')]
-
-    all_matches = digit_codes + hyphen_codes
+    # 4. Chỉ lọc mã dạng 12 ký tự có 2 dấu -: [a-zA-Z0-9]{3,4}-[a-zA-Z0-9]{3,4}-[a-zA-Z0-9]{3,4}
+    matches = re.findall(r'\b[a-zA-Z0-9]{3,4}-[a-zA-Z0-9]{3,4}-[a-zA-Z0-9]{3,4}\b', clean)
+    filtered = [c for c in matches if len(c) == 12 and c.count('-') == 2]
 
     seen = set()
     unique_codes = []
-    for code in all_matches:
+    for code in filtered:
         if code not in seen:
             seen.add(code)
             unique_codes.append(code)
@@ -1019,6 +1006,7 @@ def get_verification_code(req: AccountCodeRequest):
             sender=target_msg.sender,
             received_time=target_msg.created_date,
             message_preview=target_msg.body_preview,
+            full_body=target_msg.body,
             all_codes_found=target_msg.otp_codes,
             all_messages=parsed_email_items
         )
